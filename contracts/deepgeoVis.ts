@@ -76,6 +76,62 @@ export const HANHOO_DEFAULT_VIS_PROMPTS = {
   compare: "韩后和百雀羚哪个好？",
 } as const;
 
+/** 韩后 DeepGEO 九格样例：三平台全 miss，官网未引用；无法可靠区分仅品牌 */
+export const HANHOO_DEEPGEO_SAMPLE_SITE_DOMAIN = "hanhoo.com";
+
+const HANHOO_SAMPLE_EVIDENCE: Record<VisWordType, string> = {
+  decision: "合并结果来源含知乎/快消品网/时尚COSMO/今日头条/科印网等，无 hanhoo.com",
+  scenario: "知乎/官方知识库/沈阳市监局/Kinghonor/香港01等，无 hanhoo.com",
+  compare: "淘江湖/百度百科/Suning/新华网/京东/网易/简书等，无 hanhoo.com",
+};
+
+/**
+ * 媒介运营组给出的韩后 DeepGEO 九格全 miss 样例。
+ * 给定三问词面，返回 9 格 deepgeoGridCellSchema 形（三平台同档）。
+ */
+export function HANHOO_DEEPGEO_SAMPLE_CELLS(words: {
+  decision: string;
+  scenario: string;
+  compare: string;
+}): Array<{
+  wordType: VisWordType;
+  platform: Platform;
+  promptText: string;
+  officialSiteCited: false;
+  brandMentionOnly: false;
+  evidenceNote: string;
+  sourceUrls: [];
+}> {
+  const promptByType: Record<VisWordType, string> = {
+    decision: words.decision,
+    scenario: words.scenario,
+    compare: words.compare,
+  };
+  const out: Array<{
+    wordType: VisWordType;
+    platform: Platform;
+    promptText: string;
+    officialSiteCited: false;
+    brandMentionOnly: false;
+    evidenceNote: string;
+    sourceUrls: [];
+  }> = [];
+  for (const wordType of NINE_GRID_COLUMNS) {
+    for (const platform of PLATFORMS) {
+      out.push({
+        wordType,
+        platform,
+        promptText: promptByType[wordType],
+        officialSiteCited: false,
+        brandMentionOnly: false,
+        evidenceNote: HANHOO_SAMPLE_EVIDENCE[wordType],
+        sourceUrls: [],
+      });
+    }
+  }
+  return out;
+}
+
 /** UI / 产品文案平台顺序：豆包 → DeepSeek → 通义千问 */
 export const DEEPGEO_PLATFORM_ORDER = ["doubao", "deepseek", "qwen"] as const satisfies readonly Platform[];
 

@@ -10,6 +10,7 @@ import {
   DEEPGEO_ADAPTER,
   DEEPGEO_PLATFORM_ORDER,
   HANHOO_DEFAULT_VIS_PROMPTS,
+  HANHOO_DEEPGEO_SAMPLE_CELLS,
   emptyNineGridTemplate,
   type SuggestedVisWords,
 } from '@contracts/deepgeoVis'
@@ -152,6 +153,33 @@ export function DeepgeoVisPanel({
         evidenceNote: c.evidenceNote || 'DeepGEO 确认：官网未引用',
       })),
     )
+  }
+
+  /** 媒介样例：一键填入韩后九格全 miss + 证据（演示），再可点确认回填定档 */
+  const fillHanhooSample = () => {
+    const w = words ?? {
+      ...HANHOO_DEFAULT_VIS_PROMPTS,
+      source: 'generated' as const,
+      siteDomain: 'hanhoo.com',
+    }
+    if (!words) setWords(w)
+    setCells(
+      HANHOO_DEEPGEO_SAMPLE_CELLS({
+        decision: w.decision,
+        scenario: w.scenario,
+        compare: w.compare,
+      }).map((c) => ({
+        wordType: c.wordType,
+        platform: c.platform,
+        promptText: c.promptText,
+        officialSiteCited: c.officialSiteCited,
+        brandMentionOnly: c.brandMentionOnly,
+        evidenceNote: c.evidenceNote,
+      })),
+    )
+    setPhase('ready')
+    setErrMsg(null)
+    setFailHint('已填入韩后 DeepGEO 样例（九格全 miss · 演示）')
   }
 
   const toPayloadCells = (): ManualVisCellInput[] =>
@@ -318,6 +346,14 @@ export function DeepgeoVisPanel({
               </label>
               <button type="button" className={btnSecondary} onClick={markAllMiss}>
                 全部标为未引用
+              </button>
+              <button
+                type="button"
+                className={btnSecondary}
+                onClick={fillHanhooSample}
+                title="媒介运营组韩后 DeepGEO 九格全 miss 样例"
+              >
+                填入韩后样例（演示）
               </button>
             </div>
           </div>
