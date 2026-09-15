@@ -1,9 +1,9 @@
 /**
  * 维度四 · DeepGEO 自动查可见度契约（前后端共享）
- * 依据 DEEPGEO_VIS_AUTO_v1.md / DEEPGEO_API_v1.md（Open API）：
- * 从项目推词 → DeepGEO 查三平台 → 回填九格。
- * 服务端 runDeepgeoVis：DEEPGEO_ACCESS_TOKEN 或 PHONE|USER/PASS → customer/info + token；
- * 查询 /api/v1/query/reference + detail；平台 tongyi↔qwen；失败回退 saveVisManual。
+ * 依据 DEEPGEO_VIS_AUTO_v1.md / DEEPGEO_API_v1.md：
+ * live 主路径 = 网页 inclusionQuery 自动化 → applyVisGrid(provider=deepgeo_web)。
+ * Open API（token / customer/info）仅在 DEEPGEO_USE_OPEN_API=1 且钱包有余额时可选。
+ * 平台 tongyi↔qwen；失败回退 saveVisManual。
  */
 
 import { z } from "zod";
@@ -47,8 +47,8 @@ export const applyVisGridInput = z.object({
     compare: true,
   }),
   cells: z.array(deepgeoGridCellSchema).min(1).max(27),
-  /** 来源标记：真查 deepgeo；韩后样例短路 demo_auto */
-  provider: z.enum(["deepgeo", "demo_auto"]).default("deepgeo"),
+  /** 来源：网页自动化 deepgeo_web（live 主路径）；Open API deepgeo；韩后样例 demo_auto */
+  provider: z.enum(["deepgeo", "demo_auto", "deepgeo_web"]).default("deepgeo_web"),
 });
 
 export type ApplyVisGridInput = z.infer<typeof applyVisGridInput>;

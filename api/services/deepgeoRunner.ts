@@ -12,7 +12,8 @@
  * 平台 API 字符串：doubao / deepseek / tongyi；内部 Platform 仍 doubao|deepseek|qwen（tongyi↔qwen）
  *
  * 策略：
- * - live：DEEPGEO_ACCESS_TOKEN 直用，或 USER/PHONE+PASS 登录后真查；失败明确抛错
+ * - live 主路径：网页自动化回填 applyVisGrid(provider=deepgeo_web)
+ * - Open API：仅 DEEPGEO_USE_OPEN_API=1 时可选；失败明确抛错
  * - 代理不可用且项目为韩后：HANHOO_DEEPGEO_SAMPLE_CELLS 短路（demo_auto）
  * - 其它项目无代理：抛错 → 前端 saveVisManual / 人工九格
  */
@@ -589,18 +590,22 @@ export async function runDeepgeoQuery(args: {
   words: { decision: string; scenario: string; compare: string };
   siteDomain: string;
   projectName?: string | null;
-}): Promise<{ mode: DeepgeoRunMode; provider: "deepgeo" | "demo_auto"; cells: DeepgeoCell[] }> {
+}): Promise<{
+  mode: DeepgeoRunMode;
+  provider: "deepgeo" | "demo_auto" | "deepgeo_web";
+  cells: DeepgeoCell[];
+}> {
   const hanhoo = isHanhooProject({ name: args.projectName, domain: args.siteDomain });
   const hasCreds = hasDeepgeoCreds();
   const mode = deepgeoMode();
+  const useOpenApi = env("DEEPGEO_USE_OPEN_API") === "1";
 
-  // live 或具备凭证时优先真查
-  if (mode === "live" || hasCreds) {
+  // Open API 仅显式开启（钱包有余额）时走；默认不依赖 token
+  if (useOpenApi && (mode === "live" || hasCreds)) {
     try {
       const cells = await runDeepgeoLive(args);
       return { mode: "live", provider: "deepgeo", cells };
     } catch (e) {
-      // 代理失败：韩后可样例短路演示；其它项目继续抛
       if (hanhoo && mode !== "live") {
         return {
           mode: "sample",
@@ -619,18 +624,20 @@ export async function runDeepgeoQuery(args: {
     }
   }
 
-  // sample 模式 / 无凭证：仅韩后短路
-  if (hanhoo) {
-    return {
-      mode: "sample",
-      provider: "demo_auto",
-      cells: runDeepgeoSample(args.words),
-    };
+  // 默认：韩后 demo_auto；其它项目提示走网页自动化 applyVisGrid(deepgeo_web)
+  if (hanhoo || mode === "sample") {
+    if (hanhoo) {
+      return {
+        mode: "sample",
+        provider: "demo_auto",
+        cells: runDeepgeoSample(args.words),
+      };
+    }
   }
 
   throw new DeepgeoRunError(
-    "DEEPGEO_CREDS_MISSING",
-    "DeepGEO 代理不可用（未配置 token/账号）。非韩后项目请人工九格或配置 DEEPGEO_ACCESS_TOKEN · fallback=saveVisManual",
+    "DEEPGEO_NOT_CONFIGURED",
+    "DeepGEO live 主路径为网页自动化：请用 inclusionQuery 查完后 applyVisGrid(provider=deepgeo_web)。Open API 需 DEEPGEO_USE_OPEN_API=1 且钱包有余额 · fallback=saveVisManual",
   );
 }
 

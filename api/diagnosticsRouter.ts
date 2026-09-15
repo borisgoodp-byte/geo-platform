@@ -35,6 +35,7 @@ import {
 } from "@contracts/diagnosisMeasure";
 import {
   applyVisGridInput,
+  deepgeoGridCellSchema,
   emptyNineGridTemplate,
 } from "@contracts/deepgeoVis";
 import { DeepgeoRunError, runDeepgeoQuery } from "./services/deepgeoRunner";
@@ -158,38 +159,77 @@ const runDeepgeoVisInput = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
   persist: z.boolean().default(true),
+  /** 网页自动化已查完时直传九格（provider=deepgeo_web），跳过 Open API */
+  cells: z.array(deepgeoGridCellSchema).min(1).max(27).optional(),
+  provider: z.enum(["deepgeo", "demo_auto", "deepgeo_web"]).optional(),
 });
 
 /** 推词 → DeepGEO 查九格 → 可选落库（runDeepgeoAuto / runDeepgeoVis 共用） */
 async function executeDeepgeoVisAuto(input: z.infer<typeof runDeepgeoVisInput>) {
   const words = await suggestWordsForProject(input.projectId);
-  let run: Awaited<ReturnType<typeof runDeepgeoQuery>>;
-  try {
-    run = await runDeepgeoQuery({
-      words: {
-        decision: words.decision,
-        scenario: words.scenario,
-        compare: words.compare,
-      },
-      siteDomain: words.siteDomain,
-      projectName: words.projectName,
-    });
-  } catch (e) {
-    if (e instanceof DeepgeoRunError) {
-      throw new TRPCError({
-        code: e.code === "DEEPGEO_CREDS_MISSING" || e.code === "DEEPGEO_NOT_CONFIGURED"
-          ? "PRECONDITION_FAILED"
-          : e.code === "DEEPGEO_AUTH_FAILED"
-            ? "UNAUTHORIZED"
-            : "BAD_REQUEST",
-        message: `${e.message} · fallback=${e.fallback}`,
-        cause: e,
+  const measureDate = input.measureDate ?? new Date().toISOString().slice(0, 10);
+
+  type VisRun = {
+    mode: "live" | "sample";
+    provider: "deepgeo" | "demo_auto" | "deepgeo_web";
+    cells: Array<{
+      wordType: "decision" | "scenario" | "compare";
+      platform: "doubao" | "deepseek" | "qwen";
+      promptText: string;
+      officialSiteCited: boolean;
+      brandMentionOnly: boolean;
+      answerExcerpt?: string | null;
+      sourceUrls: string[];
+      evidenceNote?: string | null;
+    }>;
+  };
+
+  let run: VisRun;
+
+  // live 主路径：媒介/浏览器已回填 cells
+  if (input.cells?.length && (input.provider === "deepgeo_web" || input.provider === "deepgeo")) {
+    const provider = input.provider ?? "deepgeo_web";
+    run = {
+      mode: "live",
+      provider,
+      cells: input.cells.map((c) => ({
+        wordType: c.wordType,
+        platform: c.platform,
+        promptText: c.promptText,
+        officialSiteCited: c.officialSiteCited,
+        brandMentionOnly: c.brandMentionOnly ?? false,
+        answerExcerpt: c.answerExcerpt ?? null,
+        sourceUrls: c.sourceUrls ?? [],
+        evidenceNote: c.evidenceNote ?? `${provider} · ${words[c.wordType]}`,
+      })),
+    };
+  } else {
+    try {
+      run = await runDeepgeoQuery({
+        words: {
+          decision: words.decision,
+          scenario: words.scenario,
+          compare: words.compare,
+        },
+        siteDomain: words.siteDomain,
+        projectName: words.projectName,
       });
+    } catch (e) {
+      if (e instanceof DeepgeoRunError) {
+        throw new TRPCError({
+          code: e.code === "DEEPGEO_CREDS_MISSING" || e.code === "DEEPGEO_NOT_CONFIGURED"
+            ? "PRECONDITION_FAILED"
+            : e.code === "DEEPGEO_AUTH_FAILED"
+              ? "UNAUTHORIZED"
+              : "BAD_REQUEST",
+          message: `${e.message} · fallback=${e.fallback}`,
+          cause: e,
+        });
+      }
+      throw e;
     }
-    throw e;
   }
 
-  const measureDate = input.measureDate ?? new Date().toISOString().slice(0, 10);
   const payload = {
     diagnosticId: input.diagnosticId,
     projectId: input.projectId,
@@ -495,8 +535,9 @@ export const diagnosticsRouter = createRouter({
 
 
   /**
-   * P0 自动化：服务端推词 + DeepGEO 查九格并落库（persist 默认 true）。
-   * 入口页 inclusionQuery.html；失败 TRPCError · fallback=saveVisManual。
+   * P0 自动化：服务端推词 + 查九格并落库（persist 默认 true）。
+   * live 主路径：传入 cells + provider=deepgeo_web（网页 inclusionQuery 自动化）。
+   * Open API 仅 DEEPGEO_USE_OPEN_API=1；失败 TRPCError · fallback=saveVisManual。
    */
   runDeepgeoAuto: publicQuery.input(runDeepgeoVisInput).mutation(async ({ input }) => {
     return executeDeepgeoVisAuto(input);
@@ -510,7 +551,7 @@ export const diagnosticsRouter = createRouter({
 
   /**
    * DeepGEO 查完回填九格 → 定档 vis_1/2/3。
-   * DeepGEO 会话在前端/媒介侧；本接口只落库。
+   * live 主路径：provider=deepgeo_web（网页自动化九格 JSON）；本接口只落库。
    */
   applyVisGrid: publicQuery.input(applyVisGridInput).mutation(async ({ input }) => {
     // 复用 saveVisManual 同路径：转成 cells
@@ -537,7 +578,7 @@ export const diagnosticsRouter = createRouter({
     const scored = scoreVisFromCells(cells);
     const monthLabel = formatMonthOnly(input.measureDate);
     for (const [indicatorKey, row] of Object.entries(scored)) {
-      const evidence = `${monthLabel} · DeepGEO · ${row.evidence}`;
+      const evidence = `${monthLabel} · DeepGEO(${input.provider}) · ${row.evidence}`;
       await db
         .insert(indicatorScores)
         .values({
@@ -579,7 +620,7 @@ export const diagnosticsRouter = createRouter({
       visScores: scored,
       nineGridColumns: NINE_GRID_COLUMN_LABELS,
       words: input.words,
-      provider: "deepgeo" as const,
+      provider: input.provider,
     };
   }),
 
