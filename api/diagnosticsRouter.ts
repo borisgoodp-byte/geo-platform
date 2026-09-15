@@ -330,6 +330,24 @@ export const diagnosticsRouter = createRouter({
       return { diagnostic: serializeDiagnostic(updated!), scores: finalRows };
     }),
 
+  /**
+   * P0-F 默认触发入口：不问查询词，直接返回本次要查的三类词 + 九格模板。
+   * DeepGEO 浏览器查询在前端/媒介已登录态执行，完成后调 applyVisGrid；失败调 saveVisManual。
+   */
+  triggerVisAuto: publicQuery
+    .input(z.object({ projectId: z.number().int().positive(), diagnosticId: z.number().int().positive().optional() }))
+    .mutation(async ({ input }) => {
+      const words = await suggestWordsForProject(input.projectId);
+      return {
+        diagnosticId: input.diagnosticId ?? null,
+        words,
+        gridTemplate: emptyNineGridTemplate(words),
+        next: "deepgeo_then_applyVisGrid" as const,
+        fallback: "saveVisManual" as const,
+        note: "禁止向用户弹窗索取查询词；词已由系统从项目/词池推出",
+      };
+    }),
+
   /** DeepGEO：从项目推决策/场景/对比词（不问老板） */
   suggestVisWords: publicQuery
     .input(z.object({ projectId: z.number().int().positive() }))

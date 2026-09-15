@@ -3,7 +3,8 @@
 给 @前端工程师：默认 DeepGEO 自动查，失败再走人工 `saveVisManual`。
 
 ## 流程
-1. `diagnostics.suggestVisWords({ projectId })` → 三类词 + `siteDomain`（不问老板）
+0. （推荐）`diagnostics.triggerVisAuto({ projectId, diagnosticId? })` → 默认触发，返回三词+九格模板，**不问用户查什么**
+1. 或 `diagnostics.suggestVisWords({ projectId })` → 三类词 + `siteDomain`（不问老板）
 2. 前端/媒介用 **已登录 DeepGEO** 按返回的 3 词 × 三平台查询（UI 可自动触发）
 3. `diagnostics.applyVisGrid({ diagnosticId, projectId, measureDate, words, cells })` → 定档写 `vis_1/2/3`，回填九格
 4. 失败：走已有 `saveVisManual` / 人工九格
