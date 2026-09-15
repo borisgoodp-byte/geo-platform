@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 20% 98%; /* bg-page #f9fafb */
+    --foreground: 221 39% 11%; /* #111827 */
+    --card: 0 0% 100%;
+    --card-foreground: 221 39% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 221 39% 11%;
+    --primary: 221 79% 48%; /* brand #1a56db */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 14% 96%; /* #f3f4f6 */
+    --secondary-foreground: 221 39% 11%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%; /* #6b7280 */
+    --accent: 220 14% 96%; /* shadcn 悬停灰；设计点缀色用 accent-blue */
+    --accent-foreground: 221 39% 11%;
+    --destructive: 0 84% 60%; /* #ef4444 */
+    --destructive-foreground: 0 0% 98%;
+    --border: 220 13% 91%; /* #e5e7eb */
+    --input: 220 13% 91%;
+    --ring: 199 89% 48%; /* accent #0ea5e9 focus ring */
+    /* radius 8px → rounded-xl = 12px（工作台卡片），rounded-lg = 8px（按钮/输入） */
+    --radius: 0.5rem;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 221 79% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    font-family: theme("fontFamily.sans");
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: theme("fontFamily.sans");
+  }
+  /* 数字/KPI 对齐（design.md §3.1），Tailwind 内置 tabular-nums 工具类可用 */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+  ::selection {
+    background: rgba(26, 86, 219, 0.14);
+  }
+}
+
+@layer components {
+  /* 工作台卡片基座：1px 边 + 极轻投影 + 12px 圆角（design.md §4） */
+  .geo-card {
+    @apply rounded-xl border border-[#e5e7eb] bg-white shadow-card;
+  }
+  .geo-card-hover {
+    @apply transition-all duration-150 ease-geo hover:-translate-y-0.5 hover:shadow-card-hover;
+  }
+}
+
+/* ===== 体系 B · 报告页打印友好（design.md §7）===== */
+@media print {
+  .print-hidden {
+    display: none !important;
+  }
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

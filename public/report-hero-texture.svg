@@ -1,0 +1,17 @@
+<svg width="1440" height="480" viewBox="0 0 1440 480" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 报告 Hero 背景纹理：极浅灰雷达网格同心圆 + 细经纬线，仅右上象限 -->
+  <g stroke="#e8e8ed" stroke-width="1" fill="none">
+    <circle cx="1180" cy="120" r="420" opacity="0.5"/>
+    <circle cx="1180" cy="120" r="350" opacity="0.55"/>
+    <circle cx="1180" cy="120" r="280" opacity="0.6"/>
+    <circle cx="1180" cy="120" r="210" opacity="0.65"/>
+    <circle cx="1180" cy="120" r="140" opacity="0.7"/>
+    <circle cx="1180" cy="120" r="70" opacity="0.75"/>
+    <!-- 经纬线 -->
+    <path d="M1180 -300 V540 M760 120 H1600" opacity="0.5"/>
+    <path d="M884 -176 L1476 416 M1476 -176 L884 416" opacity="0.4"/>
+    <path d="M970 -254 L1390 494 M1390 -254 L970 494" opacity="0.3"/>
+    <!-- 纬度弧 -->
+    <path d="M1180 -120 A240 240 0 0 1 1180 360 M1180 -50 A170 170 0 0 1 1180 290" opacity="0.35"/>
+  </g>
+</svg>

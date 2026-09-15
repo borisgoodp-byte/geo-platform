@@ -1,0 +1,9 @@
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 阶段D 数据洞察：折线仪表盘 -->
+  <g stroke="#10b981" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3.5 20.5 V4.5 M3.5 20.5 H20.5" opacity="0.7"/>
+    <path d="M6 16 L10 11 L13 13.5 L18.5 7"/>
+    <circle cx="18.5" cy="7" r="1.6" fill="#10b981" stroke="none"/>
+    <path d="M6 20.5 V17.5 M10 20.5 V14.5 M14 20.5 V15.5 M18 20.5 V11" opacity="0.45"/>
+  </g>
+</svg>

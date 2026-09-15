@@ -1,0 +1,9 @@
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 阶段C 内容运营：羽毛笔文档 -->
+  <g stroke="#0ea5e9" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M6 3.5 H15 L19.5 8 V20.5 H6 Z"/>
+    <path d="M15 3.5 V8 H19.5" opacity="0.6"/>
+    <path d="M9 12 H15.5 M9 15.5 H14" opacity="0.5"/>
+    <path d="M13.5 17.5 C15.5 13 18.5 9.5 21 8.5 C20.5 12 18 16 14.5 19.5 L12.5 20 L13.5 17.5 Z" stroke-width="1.5"/>
+  </g>
+</svg>

@@ -1,0 +1,10 @@
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 通义千问 环形问答气泡轮廓 -->
+  <g stroke="#5e5ce6" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 3.5 A8.5 8.5 0 1 1 3.5 12 C3.5 9 5 6.4 7.2 5"/>
+    <path d="M7.5 20.8 L9.2 18.6" opacity="0.85"/>
+    <circle cx="12" cy="12" r="4.2"/>
+    <path d="M10.8 10.8 C10.8 10 11.3 9.5 12 9.5 C12.7 9.5 13.2 10 13.2 10.7 C13.2 11.5 12.6 11.8 12 12.2 V12.9" stroke-width="1.4"/>
+    <circle cx="12" cy="14.2" r="0.55" fill="#5e5ce6" stroke="none"/>
+  </g>
+</svg>

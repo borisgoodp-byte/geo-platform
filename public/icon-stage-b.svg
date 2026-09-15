@@ -1,0 +1,10 @@
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 阶段B 官网重构：蓝图板 -->
+  <g stroke="#5e5ce6" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="3.5" y="4" width="17" height="14" rx="2"/>
+    <path d="M3.5 8.5 H20.5" opacity="0.6"/>
+    <rect x="6" y="11" width="5" height="4" rx="0.8" opacity="0.85"/>
+    <path d="M13.5 11.5 H18 M13.5 14.5 H16.5" opacity="0.6"/>
+    <path d="M8 21 L12 18 L16 21" opacity="0.85"/>
+  </g>
+</svg>
