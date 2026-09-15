@@ -24,6 +24,7 @@ import {
   ScoreGauge,
   ToastHost,
 } from '@/features/diagnosis/ui'
+import { DeepgeoVisPanel } from '@/features/diagnosis/DeepgeoVisPanel'
 
 const SCORE_OPTIONS = [
   { v: 20, label: '20 优秀', color: '#10b981' },
@@ -291,8 +292,17 @@ export default function Scoring() {
                 </div>
 
                 {isVis && (
-                  <div className="border-b border-[#f3f4f6] bg-[#fffaf0] px-5 py-2.5 text-caption text-[#b45309]">
-                    按近 30 天实测，该词类三平台命中平台数自动定档（3→20 / 2→15 / 1→10 / 0→0），本维度为只读
+                  <div className="space-y-3 border-b border-[#f3f4f6] px-5 py-4">
+                    <DeepgeoVisPanel
+                      projectId={projectId}
+                      diagnosticId={diag.id}
+                      onSaved={() => {
+                        void utils.diagnostics.get.invalidate({ id: diag.id })
+                      }}
+                    />
+                    <p className="text-caption text-[#9ca3af]">
+                      定档口径：三平台命中数 3→20 / 2→15 / 1→10 / 0→0；回填后本维度只读展示。失败才人工九格兜底。
+                    </p>
                   </div>
                 )}
 
@@ -539,7 +549,7 @@ export default function Scoring() {
                 <p className="text-body font-semibold text-[#111827] tabular-nums">
                   {doneCount} / {totalCount} 已定档
                 </p>
-                <p className="text-caption text-[#9ca3af]">维度四 3 项（决策/场景/对比词）由实测自动定档 · 不测品牌词</p>
+                <p className="text-caption text-[#9ca3af]">维度四默认 DeepGEO 查可见度回填 · 不测品牌词</p>
               </div>
             </div>
             {undone.length > 0 && (

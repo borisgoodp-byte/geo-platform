@@ -27,6 +27,7 @@ import {
   todayStr,
   useMonitorToast,
 } from '@/features/monitor/shared'
+import { DeepgeoVisEntryForProject } from '@/features/diagnosis/DeepgeoVisPanel'
 
 /** 录入对象：'own' = 我方官网（默认），number = 竞对 id */
 type MeasureTarget = 'own' | number
@@ -519,6 +520,8 @@ export default function Measure() {
           </p>
         </div>
       </header>
+
+      <DeepgeoVisEntryForProject projectId={projectId} />
 
       {loading ? (
         <div className="space-y-4">

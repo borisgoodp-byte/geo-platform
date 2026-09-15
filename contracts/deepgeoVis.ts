@@ -80,13 +80,13 @@ export const HANHOO_DEFAULT_VIS_PROMPTS = {
 export const DEEPGEO_PLATFORM_ORDER = ["doubao", "deepseek", "qwen"] as const satisfies readonly Platform[];
 
 /**
- * TODO(deepgeo): 媒介确认已登录会话 / 后端代理后，在此接入真实自动查。
- * 本轮禁止伪造成「已自动查完」；一键后应明确失败并进入粘贴/确认九格。
+ * TODO(deepgeo): 本轮查九格由媒介在已登录 DeepGEO 完成；前端只做拉词+确认回填+applyVisGrid。
+ * 若后续有会话代理可在此自动填格——禁止在未查时伪造成「已自动查完」。
  */
 export const DEEPGEO_ADAPTER = {
   id: "deepgeo",
   status: "pending_proxy" as const,
-  note: "DeepGEO 后端代理尚未接入；一键后进入粘贴/确认九格回填，不伪造自动查完",
+  note: "自动填格代理未接入；请按三问在 DeepGEO 查完后确认九格",
 } as const;
 
 export function isHanhooProject(opts: { name?: string | null; domain?: string | null }): boolean {

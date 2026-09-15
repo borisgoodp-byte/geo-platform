@@ -2,7 +2,7 @@
  * 诊断维度四 · 人工实测录入契约（前后端共享）
  * 依据 DIAGNOSIS_ACCEPTANCE_v1 §B/F + zcode ai-platform-test：
  * - 仅决策词 / 场景词 / 对比词；不测品牌词（不测不写不留档）
- * - 三平台须真问留证；本轮不做浏览器自动提问，走人工录入
+ * - 默认路径：DeepGEO 查完后 applyVisGrid；本契约为失败时人工录入兜底（saveVisManual）
  * - 定档：命中平台数 3/2/1/0 → 20/15/10/0
  */
 
@@ -125,5 +125,5 @@ export function formatMonthOnly(isoDate: string): string {
 export const SKIP_AUTO_PLATFORM_PROBE = {
   id: "S1",
   reason: "需老板平台账号/浏览器会话",
-  fallback: "人工实测录入（manualVisBatch）",
+  fallback: "DeepGEO 失败时人工实测录入（saveVisManual）",
 } as const;

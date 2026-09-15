@@ -28,3 +28,8 @@
 
 ## 本轮边界
 服务端**不代持** DeepGEO cookie；编排在前端（或媒介浏览器）。会话失效 → 明确失败 + 人工录入，不卡死流程。
+
+## 前端入口（本轮已接）
+- Scoring 维度四区 / Measure 页顶：`DeepgeoVisPanel`
+- 一键 `suggestVisWords` → 只读三问 → 九格确认 → `applyVisGrid`；失败 `saveVisManual`
+- 无「请输入查询词」弹窗；韩后三问来自锁定词池（见 `HANHOO_DEFAULT_VIS_PROMPTS`）
