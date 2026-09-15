@@ -10,6 +10,7 @@ import {
   crawlResults,
   keywords,
   measurements,
+  keywordPools,
 } from "@db/schema";
 import {
   INDICATORS,
@@ -32,9 +33,49 @@ import {
   NINE_GRID_COLUMN_LABELS,
   SKIP_AUTO_PLATFORM_PROBE,
 } from "@contracts/diagnosisMeasure";
+import {
+  applyVisGridInput,
+  emptyNineGridTemplate,
+} from "@contracts/deepgeoVis";
 
 /** 维度四 单项 → 词类：决策/场景/对比（brand key 仅为对比词存储，不测品牌知名度提问） */
 const VIS_CATEGORY_MAP = VIS_INDICATOR_CATEGORY;
+
+async function suggestWordsForProject(projectId: number) {
+  const db = getDb();
+  const [p] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
+  if (!p) throw new Error(`项目不存在: ${projectId}`);
+  const siteDomain = p.domain.replace(/^www\./, "");
+
+  // 优先锁定词池各取 1 个：generic=决策 / scenario=场景 / brand=对比
+  const [pool] = await db
+    .select()
+    .from(keywordPools)
+    .where(and(eq(keywordPools.projectId, projectId), eq(keywordPools.status, "locked")))
+    .orderBy(desc(keywordPools.id))
+    .limit(1);
+  let decision: string | null = null;
+  let scenario: string | null = null;
+  let compare: string | null = null;
+  let source: "pool" | "generated" = "generated";
+  if (pool) {
+    const kws = await db
+      .select()
+      .from(keywords)
+      .where(and(eq(keywords.poolId, pool.id), eq(keywords.status, "active")));
+    decision = kws.find((k) => k.category === "generic")?.text ?? null;
+    scenario = kws.find((k) => k.category === "scenario")?.text ?? null;
+    compare = kws.find((k) => k.category === "brand")?.text ?? null;
+    if (decision && scenario && compare) source = "pool";
+  }
+  const brand = p.name.split(/[\s·|]/)[0] || p.company.slice(0, 8);
+  const industry = p.industry || "该品类";
+  decision = decision ?? `${industry}哪个牌子好？推荐几个品牌`;
+  scenario = scenario ?? `网上买${industry}哪个平台靠谱？`;
+  compare = compare ?? `${brand}和同行竞品哪个好？`;
+  return { decision, scenario, compare, source, siteDomain };
+}
+
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -288,6 +329,92 @@ export const diagnosticsRouter = createRouter({
         .where(eq(diagnostics.id, input.diagnosticId));
       return { diagnostic: serializeDiagnostic(updated!), scores: finalRows };
     }),
+
+  /** DeepGEO：从项目推决策/场景/对比词（不问老板） */
+  suggestVisWords: publicQuery
+    .input(z.object({ projectId: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      const words = await suggestWordsForProject(input.projectId);
+      return {
+        ...words,
+        gridTemplate: emptyNineGridTemplate(words),
+      };
+    }),
+
+  /**
+   * DeepGEO 查完回填九格 → 定档 vis_1/2/3。
+   * DeepGEO 会话在前端/媒介侧；本接口只落库。
+   */
+  applyVisGrid: publicQuery.input(applyVisGridInput).mutation(async ({ input }) => {
+    // 复用 saveVisManual 同路径：转成 cells
+    const cells = input.cells.map((c) => ({
+      wordType: c.wordType,
+      platform: c.platform,
+      promptText: c.promptText,
+      answerExcerpt: c.answerExcerpt ?? null,
+      sourceUrls: c.sourceUrls ?? [],
+      officialSiteCited: c.officialSiteCited,
+      brandMentionOnly: c.brandMentionOnly ?? false,
+      evidenceNote: c.evidenceNote ?? `deepgeo · ${input.words[c.wordType]}`,
+    }));
+    // inline call same logic as saveVisManual by constructing result via scoreVisFromCells
+    const db = getDb();
+    const [d] = await db
+      .select()
+      .from(diagnostics)
+      .where(eq(diagnostics.id, input.diagnosticId))
+      .limit(1);
+    if (!d) throw new Error(`诊断单不存在: ${input.diagnosticId}`);
+    if (d.projectId !== input.projectId) throw new Error("diagnosticId 与 projectId 不匹配");
+
+    const scored = scoreVisFromCells(cells);
+    const monthLabel = formatMonthOnly(input.measureDate);
+    for (const [indicatorKey, row] of Object.entries(scored)) {
+      const evidence = `${monthLabel} · DeepGEO · ${row.evidence}`;
+      await db
+        .insert(indicatorScores)
+        .values({
+          diagnosticId: input.diagnosticId,
+          indicatorKey,
+          dimension: 4,
+          score: row.score,
+          evidence,
+        })
+        .onDuplicateKeyUpdate({ set: { score: row.score, evidence } });
+    }
+    const finalRows = await db
+      .select()
+      .from(indicatorScores)
+      .where(eq(indicatorScores.diagnosticId, input.diagnosticId));
+    const scoreMap: Record<string, number> = {};
+    for (const r of finalRows) scoreMap[r.indicatorKey] = r.score ?? 0;
+    const dims = computeDimensionScore(scoreMap);
+    const composite = computeComposite(dims);
+    const grade = computeGrade(composite);
+    await db
+      .update(diagnostics)
+      .set({
+        visScore: String(dims.vis),
+        techScore: String(dims.tech),
+        archScore: String(dims.arch),
+        contentScore: String(dims.content),
+        compositeScore: String(composite),
+        grade,
+        status: d.status === "completed" ? "completed" : "scoring",
+      })
+      .where(eq(diagnostics.id, input.diagnosticId));
+    const [updated] = await db
+      .select()
+      .from(diagnostics)
+      .where(eq(diagnostics.id, input.diagnosticId));
+    return {
+      diagnostic: serializeDiagnostic(updated!),
+      visScores: scored,
+      nineGridColumns: NINE_GRID_COLUMN_LABELS,
+      words: input.words,
+      provider: "deepgeo" as const,
+    };
+  }),
 
   /**
    * 维度四人工实测录入（P0-F）。
