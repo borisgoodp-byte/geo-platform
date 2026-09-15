@@ -97,6 +97,8 @@ export default function DiagnosisReport() {
   const diagnoseDate = data?.diagnostic.diagnoseDate ?? ''
   const diagnoseMonthZh = formatMonthZh(diagnoseDate)
   const canShowClientScript = user?.role === 'operator' || user?.role === 'lead'
+  /** 打印/导出 PDF：仅 operator/lead；client 只读已完成报告 */
+  const canExportPdf = user?.role === 'operator' || user?.role === 'lead'
 
   const nineCell = (platform: string, category: string) =>
     data?.nineGrid.find((c) => c.platform === platform && c.category === category) ?? null
@@ -140,23 +142,29 @@ export default function DiagnosisReport() {
             {projectName ? `${projectName} · ` : ''}官网GEO诊断报告{diagnoseDate ? ` · ${diagnoseMonthZh}` : ''}
           </span>
           <div className="flex items-center gap-2 print-hidden">
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="flex items-center gap-1.5 rounded-full border border-[#d2d2d7] bg-white px-3.5 py-1.5 text-[13px] font-medium text-[#1d1d1f] transition-opacity hover:opacity-80"
-            >
-              <Printer className="h-3.5 w-3.5" />
-              打印
-            </button>
-            <button
-              type="button"
-              onClick={() => window.print()}
-              title="浏览器打印对话框中选择「另存为 PDF」"
-              className="flex items-center gap-1.5 rounded-full bg-[#0071e3] px-4 py-1.5 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
-            >
-              <FileDown className="h-3.5 w-3.5" />
-              导出 PDF
-            </button>
+            {canExportPdf ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="flex items-center gap-1.5 rounded-full border border-[#d2d2d7] bg-white px-3.5 py-1.5 text-[13px] font-medium text-[#1d1d1f] transition-opacity hover:opacity-80"
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                  打印
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  title="浏览器打印对话框中选择「另存为 PDF」"
+                  className="flex items-center gap-1.5 rounded-full bg-[#0071e3] px-4 py-1.5 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
+                >
+                  <FileDown className="h-3.5 w-3.5" />
+                  导出 PDF
+                </button>
+              </>
+            ) : (
+              <span className="text-[12px] text-[#86868b]">只读预览</span>
+            )}
           </div>
         </div>
         <div
@@ -603,15 +611,17 @@ export default function DiagnosisReport() {
             >
               <ArrowUp className="h-4 w-4" />
             </button>
-            <button
-              type="button"
-              aria-label="导出 PDF"
-              title="导出 PDF（打印另存）"
-              onClick={() => window.print()}
-              className="flex h-11 w-11 items-center justify-center rounded-full bg-[#0071e3] text-white shadow-rpt-card transition-all hover:-translate-y-0.5 hover:opacity-90"
-            >
-              <FileDown className="h-4 w-4" />
-            </button>
+            {canExportPdf && (
+              <button
+                type="button"
+                aria-label="导出 PDF"
+                title="导出 PDF（打印另存）"
+                onClick={() => window.print()}
+                className="flex h-11 w-11 items-center justify-center rounded-full bg-[#0071e3] text-white shadow-rpt-card transition-all hover:-translate-y-0.5 hover:opacity-90"
+              >
+                <FileDown className="h-4 w-4" />
+              </button>
+            )}
           </div>
         </>
       )}

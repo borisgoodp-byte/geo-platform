@@ -56,6 +56,13 @@ export const crawlRouter = createRouter({
             summaryJson: summary,
           })
           .$returningId();
+        // 失败也推进到 scoring，避免卡在 crawling 导致演示路径断档
+        if (d.status === "crawling") {
+          await db
+            .update(diagnostics)
+            .set({ status: "scoring" })
+            .where(eq(diagnostics.id, d.id));
+        }
         return {
           crawlResultId: id,
           status: "failed" as const,

@@ -78,7 +78,6 @@ export default function Scoring() {
   }, [diag])
 
   const saveMut = trpc.diagnostics.saveScores.useMutation()
-  const completeMut = trpc.diagnostics.complete.useMutation()
 
   const buildPayload = useCallback(() => {
     if (!diag) return []
@@ -194,15 +193,11 @@ export default function Scoring() {
 
   const completeAll = async () => {
     if (!diag) return
+    // 结单（completed）仅在 Findings「完成并预览报告」；此处只保存并前进，避免客户过早读到未完成报告
     const ok = await doSave(true)
     if (!ok) return
-    try {
-      await completeMut.mutateAsync({ diagnosticId: diag.id })
-      push('success', '评分完成，进入发现与结论编辑')
-      navigate(`/projects/${projectId}/diagnosis/${diag.id}/findings`)
-    } catch (err) {
-      push('error', err instanceof Error ? err.message : '完成评分失败')
-    }
+    push('success', '评分已保存，进入发现与结论编辑')
+    navigate(`/projects/${projectId}/diagnosis/${diag.id}/findings`)
   }
 
   const scrollToRow = (key: string) => {
@@ -235,11 +230,11 @@ export default function Scoring() {
             <button
               type="button"
               className={btnPrimary}
-              disabled={!allDone || completeMut.isPending}
-              title={allDone ? '完成评分并进入发现编辑' : `还有 ${15 - doneKeys.length} 项未定档`}
+              disabled={!allDone || saveMut.isPending}
+              title={allDone ? '保存评分并进入发现编辑' : `还有 ${15 - doneKeys.length} 项未定档`}
               onClick={() => void completeAll()}
             >
-              {completeMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {saveMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               完成评分 →
             </button>
           </>

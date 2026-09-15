@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
@@ -131,7 +131,7 @@ function buildChecklist(s: CrawlSummary, visEvidence: string[] | null): CheckIte
   ]
 }
 
-const STATUS_ICON: Record<CheckStatus, React.ReactNode> = {
+const STATUS_ICON: Record<CheckStatus, ReactElement> = {
   pending: <CircleDashed className="h-4 w-4 text-[#c4c9d1]" />,
   running: <Loader2 className="h-4 w-4 animate-spin text-brand" />,
   ok: <Check className="h-4 w-4 text-success" />,
@@ -483,8 +483,8 @@ export default function DiagnosisNew() {
                 <button
                   type="button"
                   className={cn(btnPrimary, 'h-12 min-w-[240px] px-6 text-[15px] shadow-sm')}
-                  disabled={!diagId && !diagIdRef.current}
-                  onClick={() => goToScoring()}
+                  disabled={(diagId ?? diagIdRef.current) == null}
+                  onClick={() => goToScoring(diagIdRef.current ?? diagId)}
                 >
                   直接进入评分复核 <ChevronRight className="h-4 w-4" />
                 </button>
@@ -732,8 +732,8 @@ export default function DiagnosisNew() {
                 <button
                   type="button"
                   className={btnPrimary}
-                  disabled={!diagId && !diagIdRef.current}
-                  onClick={() => goToScoring()}
+                  disabled={(diagId ?? diagIdRef.current) == null}
+                  onClick={() => goToScoring(diagIdRef.current ?? diagId)}
                 >
                   进入评分复核 <ChevronRight className="h-4 w-4" />
                 </button>

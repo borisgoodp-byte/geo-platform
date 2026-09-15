@@ -206,14 +206,25 @@ export default function Findings() {
     [verdict, directions],
   )
 
+  const goReport = () => {
+    if (!diag) return
+    navigate(`/projects/${projectId}/diagnosis/${diag.id}/report`)
+  }
+
   const completeAll = async () => {
     if (!diag) return
+    // 已结单：直接预览报告（话术卡仍可见）
+    if (diag.status === 'completed') {
+      goReport()
+      return
+    }
     const ok = await doSave(true)
     if (!ok) return
     try {
       await completeMut.mutateAsync({ diagnosticId: diag.id })
-      push('success', '诊断已完成，正在打开报告')
-      navigate(`/projects/${projectId}/diagnosis/${diag.id}/report`)
+      await utils.diagnostics.get.invalidate({ id: diag.id })
+      push('success', '诊断已完成，正在打开报告预览')
+      goReport()
     } catch (err) {
       push('error', err instanceof Error ? err.message : '完成诊断失败')
     }
@@ -240,17 +251,26 @@ export default function Findings() {
               className={btnPrimary}
               onClick={() => void completeAll()}
               disabled={completeMut.isPending}
-              title={ready ? '完成诊断并生成报告' : '缺项：五个结论段均需填写，四个优化方向各 ≥2 条'}
+              title={
+                diag.status === 'completed'
+                  ? '打开报告预览'
+                  : ready
+                    ? '完成诊断并预览报告'
+                    : '缺项：五个结论段均需填写，四个优化方向各 ≥2 条（仍可强制完成）'
+              }
             >
               {completeMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              完成诊断 · 生成报告 →
-              {ready && <span className="h-1.5 w-1.5 rounded-full bg-[#30d158]" title="已就绪" />}
+              {diag.status === 'completed' ? '预览报告 →' : '完成并预览报告 →'}
+              {(ready || diag.status === 'completed') && (
+                <span className="h-1.5 w-1.5 rounded-full bg-[#30d158]" title="已就绪" />
+              )}
             </button>
           </>
         }
       />
 
-      {(user?.role === 'operator' || user?.role === 'lead') && diag.status === 'completed' && (
+      {(user?.role === 'operator' || user?.role === 'lead') &&
+        (diag.status === 'completed' || ready) && (
         <ClientReplyCard
           projectName={projectQ.data?.name}
           findings={rows.map((r) => ({ severity: r.severity, title: r.title, body: r.body }))}
