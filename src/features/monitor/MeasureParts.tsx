@@ -435,7 +435,7 @@ export function CategoryGroupHeader({ category, count }: { category: KeywordCate
     <div className="flex items-center gap-2 border-b border-[#f3f4f6] bg-[#f9fafb] px-5 py-2">
       <span className={cn('h-4 w-[3px] rounded-full', meta.leftBar)} />
       <span className="text-small font-medium text-[#6b7280]">
-        {meta.label}（{count}）
+        {meta.column}（{count}）
       </span>
     </div>
   )

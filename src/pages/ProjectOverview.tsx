@@ -44,6 +44,7 @@ import {
   fmtPct,
 } from "@/features/board/overview-utils";
 import { diffDays, todayISO } from "@/features/board/format";
+import { formatMonthZh } from '@/lib/formatDate'
 
 type StageKey = "A" | "B" | "C" | "D";
 const STAGE_ORDER: StageKey[] = ["A", "B", "C", "D"];
@@ -257,7 +258,7 @@ export default function ProjectOverview() {
       <div className="mb-4 grid grid-cols-2 gap-4 xl:grid-cols-4">
         <KpiCard
           label="综合健康度"
-          footnote={diag ? `四维加权 · ${diag.diagnoseDate} 诊断` : "暂无诊断数据"}
+          footnote={diag ? `四维加权 · ${formatMonthZh(diag.diagnoseDate)} 诊断` : "暂无诊断数据"}
           sub={
             diag?.grade ? (
               <GradeBadge grade={diag.grade} />

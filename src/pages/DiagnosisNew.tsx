@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
@@ -19,6 +19,7 @@ import { trpc } from '@/providers/trpc'
 import { cn } from '@/lib/utils'
 import { DIMS, EASE, btnGhost, btnPrimary, btnSecondary } from '@/features/diagnosis/meta'
 import { DiagStatusChip, DimBar, PageHeader, PageSkeleton, ScoreGauge } from '@/features/diagnosis/ui'
+import { formatMonthZh } from '@/lib/formatDate'
 
 /* ---------- 检测清单（由 crawl summary 推导真实结果） ---------- */
 
@@ -72,7 +73,7 @@ function buildChecklist(s: CrawlSummary, visEvidence: string[] | null): CheckIte
     {
       label: 'sitemap.xml 检测',
       status: s.sitemap.found ? 'ok' : 'failed',
-      detail: s.sitemap.found ? `可访问，收录约 ${s.sitemap.urlCount} 个 URL` : '404 未找到',
+      detail: s.sitemap.found ? `可访问，站点地图约 ${s.sitemap.urlCount} 个页面` : '404 未找到',
     },
     {
       label: 'llms.txt 检测',
@@ -212,7 +213,7 @@ function HistoryMenu({ projectId }: { projectId: number }) {
                   )
                 }
               >
-                <span className="font-mono text-[#374151] tabular-nums">{d.diagnoseDate}</span>
+                <span className="font-mono text-[#374151] tabular-nums">{formatMonthZh(d.diagnoseDate)}</span>
                 <DiagStatusChip status={d.status} />
                 <span className="ml-auto font-semibold text-[#111827] tabular-nums">
                   {d.compositeScore !== null ? d.compositeScore.toFixed(1) : '—'}
@@ -240,6 +241,8 @@ export default function DiagnosisNew() {
   const [domain, setDomain] = useState('')
   const [domainTouched, setDomainTouched] = useState(false)
   const [diagId, setDiagId] = useState<number | null>(null)
+  /** 同步缓存 create 返回的 id，避免 setState 尚未提交时失败态主按钮点不动 */
+  const diagIdRef = useRef<number | null>(null)
   const [crawlSummary, setCrawlSummary] = useState<CrawlSummary | null>(null)
   const [crawlFailed, setCrawlFailed] = useState<string | null>(null)
   const [runningIdx, setRunningIdx] = useState(0)
@@ -276,13 +279,24 @@ export default function DiagnosisNew() {
     return () => window.removeEventListener('beforeunload', h)
   }, [crawling])
 
+  const rememberDiagId = (id: number) => {
+    diagIdRef.current = id
+    setDiagId(id)
+  }
+
+  const goToScoring = (id?: number | null) => {
+    const dId = id ?? diagIdRef.current ?? diagId
+    if (!dId) return
+    navigate(`/projects/${projectId}/diagnosis/${dId}/scoring`)
+  }
+
   const runCrawl = async () => {
     if (!Number.isFinite(projectId)) return
     setCrawlFailed(null)
     setCrawlSummary(null)
     setRunningIdx(0)
     try {
-      let dId = diagId
+      let dId = diagIdRef.current ?? diagId
       if (!dId) {
         // 域名被修改时先落库，抓取器以项目域名为准
         if (project && effectiveDomain.trim() && effectiveDomain.trim() !== project.domain) {
@@ -290,19 +304,23 @@ export default function DiagnosisNew() {
         }
         const d = await createMut.mutateAsync({ projectId })
         dId = d.id
-        setDiagId(dId)
+        // create 成功立刻落 ref+state，后续 crawl 失败仍可一键进评分
+        rememberDiagId(dId)
       }
       setStep(2)
       const res = await crawlMut.mutateAsync({ diagnosticId: dId })
       setCrawlSummary(res.summary)
       await utils.diagnostics.get.invalidate({ id: dId })
       if (res.status === 'failed') {
+        // 确保失败态渲染时 id 已可用（防 setState 时序）
+        rememberDiagId(dId)
         setCrawlFailed(res.summary.error ?? '目标站点不可达')
       } else {
         // 展示完整检测清单结果后自动进入初评摘要
         window.setTimeout(() => setStep(3), 1600)
       }
     } catch (err) {
+      // create 已成功时 ref 仍保留 id，失败卡可进评分
       setCrawlFailed(err instanceof Error ? err.message : '抓取失败')
       setStep(2)
     }
@@ -439,26 +457,48 @@ export default function DiagnosisNew() {
           transition={{ duration: 0.4, ease: EASE }}
         >
           {crawlFailed && !crawling ? (
-            /* 整体失败态 */
-            <div className="flex flex-col items-center gap-4 py-10 text-center">
-              <span className="flex h-16 w-16 items-center justify-center rounded-full bg-[#fef2f2]">
-                <X className="h-8 w-8 text-danger" />
+            /* 整体失败态：醒目说明 + 保证能进评分（非路由白屏） */
+            <div className="rounded-xl border-2 border-[#fecaca] bg-[#fef2f2] px-6 py-10 text-center sm:px-10">
+              <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-sm">
+                <AlertTriangle className="h-8 w-8 text-danger" />
               </span>
-              <h2 className="text-h1 text-[#111827]">目标站点不可达</h2>
-              <p className="max-w-md font-mono text-small text-[#6b7280]">{crawlFailed}</p>
-              <p className="text-small text-[#9ca3af]">可跳过抓取直接进入人工评分，18 项指标全部手动定档。</p>
-              <div className="mt-2 flex gap-3">
-                <button type="button" className={btnSecondary} onClick={runCrawl}>
-                  <RefreshCw className="h-4 w-4" /> 重试
-                </button>
+              <h2 className="mt-5 text-[22px] font-semibold leading-tight text-[#111827]">
+                抓取失败 · 目标站点不可达
+              </h2>
+              <p className="mx-auto mt-3 max-w-lg rounded-lg border border-[#fecaca] bg-white/90 px-4 py-2.5 font-mono text-small text-[#991b1b]">
+                {crawlFailed}
+              </p>
+              <div className="mx-auto mt-5 max-w-md space-y-2 text-left">
+                <p className="text-body font-medium text-[#111827]">下一步说明</p>
+                <ul className="list-disc space-y-1.5 pl-5 text-small text-[#4b5563]">
+                  <li>
+                    <span className="font-medium text-[#111827]">可跳过抓取</span>
+                    ，18 项指标改人工定档——主按钮进入评分复核
+                  </li>
+                  <li>站点恢复可达后，可用次要按钮「重试抓取」再跑自动检测</li>
+                  <li>当前仍停在新建页，不是路由白屏；诊断单已创建时可继续流程</li>
+                </ul>
+              </div>
+              <div className="mt-7 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
                 <button
                   type="button"
-                  className={btnPrimary}
-                  onClick={() => diagId && navigate(`/projects/${projectId}/diagnosis/${diagId}/scoring`)}
+                  className={cn(btnPrimary, 'h-12 min-w-[240px] px-6 text-[15px] shadow-sm')}
+                  disabled={!diagId && !diagIdRef.current}
+                  onClick={() => goToScoring()}
                 >
-                  直接进入评分 <ChevronRight className="h-4 w-4" />
+                  直接进入评分复核 <ChevronRight className="h-4 w-4" />
+                </button>
+                <button type="button" className={cn(btnSecondary, 'h-11')} onClick={runCrawl}>
+                  <RefreshCw className="h-4 w-4" /> 重试抓取
                 </button>
               </div>
+              {!diagId && !diagIdRef.current ? (
+                <p className="mt-3 text-small text-danger">诊断单尚未创建成功，请先重试抓取后再进入评分。</p>
+              ) : (
+                <p className="mt-3 text-small text-[#6b7280]">
+                  诊断单 #{diagId ?? diagIdRef.current} 已创建 · 可跳过抓取，18 项改人工定档
+                </p>
+              )}
             </div>
           ) : (
             <>
@@ -692,7 +732,8 @@ export default function DiagnosisNew() {
                 <button
                   type="button"
                   className={btnPrimary}
-                  onClick={() => diagId && navigate(`/projects/${projectId}/diagnosis/${diagId}/scoring`)}
+                  disabled={!diagId && !diagIdRef.current}
+                  onClick={() => goToScoring()}
                 >
                   进入评分复核 <ChevronRight className="h-4 w-4" />
                 </button>

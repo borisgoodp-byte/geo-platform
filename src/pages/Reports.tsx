@@ -507,7 +507,7 @@ function ReportDocument({
   };
 
   // 词级明细按词类分组
-  const groups = (["brand", "generic", "scenario"] as const)
+  const groups = (["generic", "scenario", "brand"] as const)
     .map((c) => ({
       category: c,
       words: report.keywordDetails

@@ -3,6 +3,7 @@ import { FileText, Loader2 } from 'lucide-react'
 import { trpc } from '@/providers/trpc'
 import { useAuth } from '@/providers/auth'
 import { cn } from '@/lib/utils'
+import { formatMonthZh } from '@/lib/formatDate'
 
 /**
  * 已发布诊断报告轻列表（客户侧栏第三项入口）。
@@ -57,7 +58,7 @@ export default function DiagnosisReportsList() {
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium text-[#111827]">
-                      诊断报告 · {d.diagnoseDate ?? `ID ${d.id}`}
+                      诊断报告 · {d.diagnoseDate ? formatMonthZh(d.diagnoseDate) : `ID ${d.id}`}
                     </p>
                     <p className="text-caption text-[#9ca3af]">
                       状态{' '}

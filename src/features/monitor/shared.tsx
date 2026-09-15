@@ -4,29 +4,26 @@ import { CheckCircle2, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { KeywordCategory, MeasureLevel, Platform } from '@contracts/kpi'
 import {
+  CATEGORY_HINTS,
   CATEGORY_LABELS,
   LEVEL_LABELS,
   PLATFORM_LABELS,
+  categoryColumnLabel,
 } from '@contracts/kpi'
 
 /* ================= 元数据（词类 / 平台 / 判定级） ================= */
 
-export const CATEGORY_ORDER: KeywordCategory[] = ['brand', 'generic', 'scenario']
+/** 决策→场景→对比（不测品牌词；key brand = 对比词） */
+export const CATEGORY_ORDER: KeywordCategory[] = ['generic', 'scenario', 'brand']
 
 export const CATEGORY_META: Record<
   KeywordCategory,
-  { label: string; dot: string; text: string; chipBorder: string; chipBg: string; leftBar: string }
+  { label: string; hint: string; column: string; dot: string; text: string; chipBorder: string; chipBg: string; leftBar: string }
 > = {
-  brand: {
-    label: CATEGORY_LABELS.brand,
-    dot: '#1a56db',
-    text: 'text-[#1a56db]',
-    chipBorder: 'hover:border-[#1a56db]/50',
-    chipBg: 'bg-[#1a56db]/[0.08]',
-    leftBar: 'bg-[#1a56db]',
-  },
   generic: {
     label: CATEGORY_LABELS.generic,
+    hint: CATEGORY_HINTS.generic,
+    column: categoryColumnLabel('generic'),
     dot: '#0ea5e9',
     text: 'text-[#0284c7]',
     chipBorder: 'hover:border-[#0ea5e9]/50',
@@ -35,11 +32,23 @@ export const CATEGORY_META: Record<
   },
   scenario: {
     label: CATEGORY_LABELS.scenario,
+    hint: CATEGORY_HINTS.scenario,
+    column: categoryColumnLabel('scenario'),
     dot: '#5e5ce6',
     text: 'text-[#5e5ce6]',
     chipBorder: 'hover:border-[#5e5ce6]/50',
     chipBg: 'bg-[#5e5ce6]/[0.08]',
     leftBar: 'bg-[#5e5ce6]',
+  },
+  brand: {
+    label: CATEGORY_LABELS.brand,
+    hint: CATEGORY_HINTS.brand,
+    column: categoryColumnLabel('brand'),
+    dot: '#1a56db',
+    text: 'text-[#1a56db]',
+    chipBorder: 'hover:border-[#1a56db]/50',
+    chipBg: 'bg-[#1a56db]/[0.08]',
+    leftBar: 'bg-[#1a56db]',
   },
 }
 

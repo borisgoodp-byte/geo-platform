@@ -310,7 +310,6 @@ export const diagnosticsRouter = createRouter({
     const monthLabel = formatMonthOnly(input.measureDate);
 
     for (const [indicatorKey, row] of Object.entries(scored)) {
-      const def = INDICATORS.find((i) => i.key === indicatorKey)!;
       const evidence = `${monthLabel} · ${row.evidence}`;
       await db
         .insert(indicatorScores)

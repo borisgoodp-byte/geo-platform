@@ -13,7 +13,8 @@ import {
 export { CATEGORY_LABELS, KPI_STATUS_LABELS, LEVEL_LABELS, PLATFORM_LABELS };
 
 export const PLATFORMS_ALL: Platform[] = ["deepseek", "doubao", "qwen"];
-export const CATEGORIES_ALL: KeywordCategory[] = ["brand", "generic", "scenario"];
+/** 决策→场景→对比（key brand = 对比词，不测品牌词） */
+export const CATEGORIES_ALL: KeywordCategory[] = ["generic", "scenario", "brand"];
 
 export const PLATFORM_COLORS: Record<Platform, string> = {
   deepseek: "#1a56db",

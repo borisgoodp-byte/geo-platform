@@ -562,6 +562,11 @@ export default function Measure() {
 
           <LegendBar />
 
+          <div className="rounded-lg border border-[#e5e7eb] bg-[#f9fafb] px-4 py-2.5 text-caption text-[#6b7280]">
+            词类按维度四口径分组：<b className="text-[#374151]">决策词（品类推荐）→ 场景词（采购场景）→ 对比词（品牌对比）</b>
+            。不测品牌词（不问「XX 品牌是什么 / 官网地址」类），只录官网是否被引用。
+          </div>
+
           {isHistory && readOnly && <ReadOnlyBar onEnable={() => setEditHistory(true)} />}
 
           <div className="grid items-start gap-5 lg:grid-cols-12">

@@ -42,7 +42,7 @@ export default function PoolWizard({ open, onOpenChange, submitting, onSubmit }:
   const [name, setName] = useState('监测词池 v1')
   const [operator, setOperator] = useState('李监测')
   const [paste, setPaste] = useState('')
-  const [pasteCategory, setPasteCategory] = useState<KeywordCategory>('brand')
+  const [pasteCategory, setPasteCategory] = useState<KeywordCategory>('generic')
   const [pasteExtended, setPasteExtended] = useState(false)
   const [words, setWords] = useState<WizardWord[]>([])
   const [dupMsg, setDupMsg] = useState('')

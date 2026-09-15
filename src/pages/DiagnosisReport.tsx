@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { motion } from 'framer-motion'
-import { ArrowLeft, ArrowUp, Loader2, Printer } from 'lucide-react'
+import { ArrowLeft, ArrowUp, FileDown, Loader2, Printer } from 'lucide-react'
 import { trpc } from '@/providers/trpc'
 import { useAuth } from '@/providers/auth'
 import ForbiddenPage from '@/components/ForbiddenPage'
@@ -9,6 +9,8 @@ import { parseNumericId } from '@/features/business/utils'
 import { ReportGauge, ReportRadar, bandColor, bandGrade, GRADE_TEXT } from '@/features/business/report/ReportCharts'
 import { ReportCard, ReportSecHead, FindingCard, ReportPlaceholder } from '@/features/business/report/ReportPrimitives'
 import type { Severity } from '@/features/business/report/ReportPrimitives'
+import { formatDateId, formatMonthZh } from '@/lib/formatDate'
+import { ClientReplyCard } from '@/features/diagnosis/ClientReplyCard'
 
 /** 报告页维度元数据（Apple 体系配色，design.md §2.2） */
 const DIMS = [
@@ -24,11 +26,11 @@ const PLATFORM_META = [
   { key: 'qwen', name: '通义千问', color: '#5e5ce6' },
 ] as const
 
-/** 九格列：决策词=通用类 / 场景词=业务场景类 / 对比词=品牌类（与后端 VIS 映射一致） */
+/** 九格列头逐字固定（决策→场景→对比）；key brand=对比词，不测品牌词 */
 const GRID_COLS = [
-  { key: 'generic', name: '决策词', hint: '品类推荐' },
-  { key: 'scenario', name: '场景词', hint: '采购场景' },
-  { key: 'brand', name: '对比词', hint: '品牌对比' },
+  { key: 'generic', label: '决策词（品类推荐）' },
+  { key: 'scenario', label: '场景词（采购场景）' },
+  { key: 'brand', label: '对比词（品牌对比）' },
 ] as const
 
 const LEVEL_CELL: Record<string, { text: string; label: string; color: string }> = {
@@ -48,12 +50,14 @@ function firstSentence(text: string): string {
 /** 打印规则：报告页独占（index.css 已含全局 print-hidden / 动画关闭） */
 const PRINT_CSS = `
 @media print {
-  .rpt-root { background: #fff !important; }
-  .rpt-card { box-shadow: none !important; border: 1px solid #e5e7eb; break-inside: avoid; }
-  .rpt-finding { break-inside: avoid; }
-  .rpt-topbar, .rpt-float, .rpt-progress { display: none !important; }
-  .rpt-hero { padding: 32px 24px 24px !important; }
-  @page { margin: 16mm; }
+  html, body { background: #fff !important; }
+  .rpt-root { background: #fff !important; min-height: auto !important; }
+  .rpt-card { box-shadow: none !important; border: 1px solid #e5e7eb; break-inside: avoid; page-break-inside: avoid; }
+  .rpt-finding, .rpt-dir-card { break-inside: avoid; page-break-inside: avoid; }
+  .rpt-topbar, .rpt-float, .rpt-progress, .print-hidden { display: none !important; }
+  .rpt-hero { padding: 24px 16px 16px !important; }
+  aside, nav, [data-sidebar] { display: none !important; }
+  @page { margin: 14mm; size: A4; }
 }
 `
 
@@ -91,7 +95,8 @@ export default function DiagnosisReport() {
   const gradeColor = { A: '#30d158', B: '#0071e3', C: '#ff9f0a', D: '#ff3b30' }[grade]
 
   const diagnoseDate = data?.diagnostic.diagnoseDate ?? ''
-  const month = diagnoseDate.slice(0, 7)
+  const diagnoseMonthZh = formatMonthZh(diagnoseDate)
+  const canShowClientScript = user?.role === 'operator' || user?.role === 'lead'
 
   const nineCell = (platform: string, category: string) =>
     data?.nineGrid.find((c) => c.platform === platform && c.category === category) ?? null
@@ -132,16 +137,27 @@ export default function DiagnosisReport() {
             返回工作台
           </Link>
           <span className="hidden text-[12px] text-[#86868b] sm:inline">
-            {projectName ? `${projectName} · ` : ''}官网GEO诊断报告{month ? ` · ${month}` : ''}
+            {projectName ? `${projectName} · ` : ''}官网GEO诊断报告{diagnoseDate ? ` · ${diagnoseMonthZh}` : ''}
           </span>
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="flex items-center gap-1.5 rounded-full bg-[#0071e3] px-4 py-1.5 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
-          >
-            <Printer className="h-3.5 w-3.5" />
-            打印 / 导出 PDF
-          </button>
+          <div className="flex items-center gap-2 print-hidden">
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="flex items-center gap-1.5 rounded-full border border-[#d2d2d7] bg-white px-3.5 py-1.5 text-[13px] font-medium text-[#1d1d1f] transition-opacity hover:opacity-80"
+            >
+              <Printer className="h-3.5 w-3.5" />
+              打印
+            </button>
+            <button
+              type="button"
+              onClick={() => window.print()}
+              title="浏览器打印对话框中选择「另存为 PDF」"
+              className="flex items-center gap-1.5 rounded-full bg-[#0071e3] px-4 py-1.5 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
+            >
+              <FileDown className="h-3.5 w-3.5" />
+              导出 PDF
+            </button>
+          </div>
         </div>
         <div
           className="rpt-progress h-[2px] bg-[#0071e3] transition-[width] duration-150"
@@ -188,7 +204,7 @@ export default function DiagnosisReport() {
                 transition={{ duration: 0.3 }}
                 className="inline-block rounded-full border border-[#d2d2d7] bg-white px-4 py-1.5 text-[12px] font-semibold tracking-[0.12em] text-[#6e6e73]"
               >
-                GEO DIAGNOSTIC REPORT{month ? ` · ${month}` : ''}
+                GEO DIAGNOSTIC REPORT{diagnoseDate ? ` · ${diagnoseMonthZh}` : ''}
               </motion.span>
               <motion.h1
                 initial={{ opacity: 0, y: 24 }}
@@ -218,13 +234,28 @@ export default function DiagnosisReport() {
                 transition={{ delay: 0.55, duration: 0.5 }}
                 className="mt-7 font-mono text-[12px] leading-[22px] text-[#86868b]"
               >
-                诊断域名 {data.project?.domain ?? '—'} · 诊断日期 {diagnoseDate || '—'} · 服务机构
+                诊断域名 {data.project?.domain ?? '—'} · 诊断日期 {diagnoseMonthZh} · 服务机构
                 清蓝官网GEO项目组 / PureblueAI 媒介运营部 · 密级 内部资料
               </motion.div>
             </div>
           </section>
 
           <div className="mx-auto flex max-w-[960px] flex-col gap-14 px-5 pb-6">
+            {canShowClientScript && data.diagnostic.status === 'completed' && (
+              <ClientReplyCard
+                variant="report"
+                projectName={projectName}
+                findings={(data.findings ?? []).map((f) => ({
+                  severity: f.severity,
+                  title: f.title,
+                  body: f.body,
+                }))}
+                verdict={verdict}
+                composite={composite}
+                grade={grade}
+                packageMonths={6}
+              />
+            )}
             {/* ===== Section 01 · 综合健康度总览 ===== */}
             <ReportCard>
               <ReportSecHead
@@ -338,7 +369,7 @@ export default function DiagnosisReport() {
                 title="AI 平台引用实测速览"
                 desc={
                   data.nineGridDate
-                    ? `${data.nineGridDate} 实测 · 三类典型提问 × 三平台 · L2 来源命中口径`
+                    ? `实测时间：${data.nineGridDate} · 决策/场景/对比词 × 豆包、DeepSeek、通义千问 · L2 来源命中口径（不测品牌词）`
                     : '尚未进行平台实测'
                 }
               />
@@ -351,8 +382,7 @@ export default function DiagnosisReport() {
                         <span />
                         {GRID_COLS.map((c) => (
                           <div key={c.key} className="text-center">
-                            <div className="text-[13px] font-semibold text-[#6e6e73]">{c.name}</div>
-                            <div className="text-[11px] text-[#86868b]">{c.hint}</div>
+                            <div className="text-[13px] font-semibold text-[#6e6e73]">{c.label}</div>
                           </div>
                         ))}
                       </div>
@@ -558,7 +588,7 @@ export default function DiagnosisReport() {
                 <br />
                 数据口径：L2 来源命中计引用呈现率；评分为四档制（20/15/10/0）
                 <br />
-                报告编号 GEO-{diagnoseDate.replaceAll('-', '') || '00000000'}-R{data.diagnostic.id} · 诊断日期 {diagnoseDate || '—'}
+                报告编号 GEO-{formatDateId(diagnoseDate)}-R{data.diagnostic.id} · 诊断日期 {diagnoseMonthZh}
               </p>
             </div>
           </footer>
@@ -575,11 +605,12 @@ export default function DiagnosisReport() {
             </button>
             <button
               type="button"
-              aria-label="打印"
+              aria-label="导出 PDF"
+              title="导出 PDF（打印另存）"
               onClick={() => window.print()}
               className="flex h-11 w-11 items-center justify-center rounded-full bg-[#0071e3] text-white shadow-rpt-card transition-all hover:-translate-y-0.5 hover:opacity-90"
             >
-              <Printer className="h-4 w-4" />
+              <FileDown className="h-4 w-4" />
             </button>
           </div>
         </>

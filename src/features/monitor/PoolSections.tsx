@@ -507,9 +507,10 @@ export function LockDialog({
         </DialogHeader>
 
         <div className="rounded-lg border border-[#e5e7eb] bg-[#f9fafb] px-4 py-3 text-small text-[#374151]">
-          词池快照：品牌 <b className="tabular-nums">{counts.brand}</b> · 通用{' '}
-          <b className="tabular-nums">{counts.generic}</b> · 场景 <b className="tabular-nums">{counts.scenario}</b> · 可拓{' '}
+          词池快照：决策词 <b className="tabular-nums">{counts.generic}</b> · 场景词{' '}
+          <b className="tabular-nums">{counts.scenario}</b> · 对比词 <b className="tabular-nums">{counts.brand}</b> · 可拓{' '}
           <b className="tabular-nums">{counts.extended}</b>
+          <span className="mt-1 block text-caption text-[#9ca3af]">维度四口径：决策 / 场景 / 对比；不测品牌词（不问「品牌是什么」类）</span>
         </div>
         <div className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/[0.08] px-3.5 py-2.5 text-small text-[#b45309]">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -566,7 +567,7 @@ export function KeywordChangeDialog({
   }) => void
 }) {
   const [text, setText] = useState('')
-  const [category, setCategory] = useState<KeywordCategory>('brand')
+  const [category, setCategory] = useState<KeywordCategory>('generic')
   const [isExtended, setIsExtended] = useState(false)
   const [operator, setOperator] = useState('')
   const [reason, setReason] = useState('')
@@ -577,7 +578,7 @@ export function KeywordChangeDialog({
     setReason('')
     if (intent.mode === 'add') {
       setText('')
-      setCategory(intent.category ?? 'brand')
+      setCategory(intent.category ?? 'generic')
       setIsExtended(intent.extended)
     } else {
       setText(intent.keyword.text)

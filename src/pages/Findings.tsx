@@ -15,6 +15,8 @@ import {
   SavedChip,
   ToastHost,
 } from '@/features/diagnosis/ui'
+import { ClientReplyCard } from '@/features/diagnosis/ClientReplyCard'
+import { useAuth } from '@/providers/auth'
 
 type Severity = 'danger' | 'warn' | 'ok'
 
@@ -59,10 +61,15 @@ export default function Findings() {
   const diagId = Number(dId)
   const navigate = useNavigate()
   const utils = trpc.useUtils()
+  const { user } = useAuth()
   const { toasts, push } = useToasts()
 
   const diagQ = trpc.diagnostics.get.useQuery({ id: diagId }, { enabled: Number.isFinite(diagId) })
   const diag = diagQ.data
+  const projectQ = trpc.projects.get.useQuery(
+    { id: projectId },
+    { enabled: Number.isFinite(projectId) && projectId > 0 },
+  )
 
   const [tab, setTab] = useState<'findings' | 'verdict'>('findings')
   const [rows, setRows] = useState<FindingDraft[]>([])
@@ -242,6 +249,17 @@ export default function Findings() {
           </>
         }
       />
+
+      {(user?.role === 'operator' || user?.role === 'lead') && diag.status === 'completed' && (
+        <ClientReplyCard
+          projectName={projectQ.data?.name}
+          findings={rows.map((r) => ({ severity: r.severity, title: r.title, body: r.body }))}
+          verdict={verdict}
+          composite={diag.compositeScore}
+          grade={diag.grade}
+          packageMonths={6}
+        />
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-[#e5e7eb]">

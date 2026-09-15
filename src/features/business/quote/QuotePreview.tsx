@@ -1,5 +1,6 @@
 import { Fragment } from 'react'
 import { fmtMoney, STAGE_COLORS, TIER_KPI, TIER_LABELS } from '@/features/business/utils'
+import { formatMonthZh } from '@/lib/formatDate'
 
 export const QUOTE_GROUP_META: Record<string, { name: string; color: string }> = {
   A: { name: '诊断类', color: STAGE_COLORS.A },
@@ -80,7 +81,7 @@ export function QuotePreview({ data }: { data: QuotePreviewData }) {
         </p>
         <p>
           <span className="text-[#6b7280]">报价日期：</span>
-          <span className="tabular-nums">{data.quoteDate}</span>
+          <span className="tabular-nums">{formatMonthZh(data.quoteDate)}</span>
           <span className="ml-3 text-[#6b7280]">有效期 {data.validityDays} 天</span>
         </p>
       </div>

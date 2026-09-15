@@ -75,4 +75,8 @@
     animation: none !important;
     transition: none !important;
   }
+  /* 诊断报告：隐藏应用壳，仅保留报告正文 */
+  body {
+    background: #fff !important;
+  }
 }

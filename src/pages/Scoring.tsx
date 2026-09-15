@@ -11,6 +11,7 @@ import {
 import type { DimensionKey } from '@contracts/scoring'
 import { trpc } from '@/providers/trpc'
 import { cn } from '@/lib/utils'
+import { formatMonthZh } from '@/lib/formatDate'
 import { DIMS, EASE, btnPrimary, btnSecondary, nowTime } from '@/features/diagnosis/meta'
 import { useToasts } from '@/features/diagnosis/useToasts'
 import {
@@ -224,7 +225,7 @@ export default function Scoring() {
       <PageHeader
         title="评分复核"
         badge={<DiagStatusChip status={diag.status} />}
-        caption={`${projectQ.data?.name ?? ''} · ${diag.diagnoseDate} 诊断 · 快捷键 1/2/3/4 对展开项直接打 20/15/10/0`}
+        caption={`${projectQ.data?.name ?? ''} · ${formatMonthZh(diag.diagnoseDate)} 诊断 · 快捷键 1/2/3/4 对展开项直接打 20/15/10/0`}
         right={
           <>
             <SavedChip savedAt={savedAt} saving={saveMut.isPending} />
@@ -543,7 +544,7 @@ export default function Scoring() {
                 <p className="text-body font-semibold text-[#111827] tabular-nums">
                   {doneCount} / {totalCount} 已定档
                 </p>
-                <p className="text-caption text-[#9ca3af]">维度四 3 项由实测自动定档</p>
+                <p className="text-caption text-[#9ca3af]">维度四 3 项（决策/场景/对比词）由实测自动定档 · 不测品牌词</p>
               </div>
             </div>
             {undone.length > 0 && (
