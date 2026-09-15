@@ -12,14 +12,27 @@ export const PLATFORM_LABELS: Record<Platform, string> = {
   qwen: "通义千问",
 };
 
+/** 存储 key 仍为 brand/generic/scenario；对外文案对齐维度四：决策/场景/对比（不测品牌词） */
 export const KEYWORD_CATEGORIES = ["brand", "generic", "scenario"] as const;
 export type KeywordCategory = (typeof KEYWORD_CATEGORIES)[number];
 
 export const CATEGORY_LABELS: Record<KeywordCategory, string> = {
-  brand: "品牌类",
-  generic: "通用类",
-  scenario: "业务场景类",
+  generic: "决策词",
+  scenario: "场景词",
+  brand: "对比词",
 };
+
+/** 括注：与报告九格列头一致（品类推荐 / 采购场景 / 品牌对比） */
+export const CATEGORY_HINTS: Record<KeywordCategory, string> = {
+  generic: "品类推荐",
+  scenario: "采购场景",
+  brand: "品牌对比",
+};
+
+/** 对外完整列头（决策→场景→对比顺序展示时用） */
+export function categoryColumnLabel(c: KeywordCategory): string {
+  return `${CATEGORY_LABELS[c]}（${CATEGORY_HINTS[c]}）`;
+}
 
 /** 判定等级：L2 来源命中（计 KPI）/ L1 品牌提及（单列观察）/ L0 未命中 */
 export const MEASURE_LEVELS = ["L2", "L1", "L0"] as const;
@@ -81,6 +94,9 @@ export type CheckpointTag = keyof typeof CHECKPOINTS;
 /** 词库 KPI：完成词数 ÷ 词库总词数 ≥ 80% 即词库达标 */
 export const POOL_COMPLETION_TARGET = 80;
 
+/** 单词单日检索次数口径（zcode 硬规则 3）：引用率 = 命中次数 ÷ 10 */
+export const WORD_DAILY_SEARCHES = 10;
+
 /** 验收折扣口径：核心 KPI 达成率 ≥80% 即验收合格 */
 export const ACCEPTANCE_FACTOR = 0.8;
 
@@ -94,6 +110,12 @@ export const VIS_WORD_TYPE_LABELS: Record<VisWordType, string> = {
   decision: "决策词",
   scenario: "场景词",
   compare: "对比词",
+};
+
+export const VIS_WORD_TYPE_HINTS: Record<VisWordType, string> = {
+  decision: "品类推荐",
+  scenario: "采购场景",
+  compare: "品牌对比",
 };
 
 /** 追踪参数黑名单（normalizeUrl 时剔除） */
@@ -142,6 +164,15 @@ export function normalizeUrl(raw: string): string {
   if (path === "/") path = "";
 
   return `${host}${path}${query ? `?${query}` : ""}`;
+}
+
+/** 单词官网引用率 = 单日命中次数 ÷ WORD_DAILY_SEARCHES × 100%（保留 1 位小数） */
+export function calcWordCitationRate(
+  hitCount: number,
+  searches: number = WORD_DAILY_SEARCHES,
+): number {
+  if (searches <= 0) return 0;
+  return Math.round((hitCount / searches) * 1000) / 10;
 }
 
 /** 引用呈现率 = L2 记录数 ÷ 实测记录总数 × 100%（保留 1 位小数；总数 0 时返回 0） */

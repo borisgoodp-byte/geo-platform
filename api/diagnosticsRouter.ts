@@ -24,13 +24,17 @@ import {
   queryMeasurements,
 } from "./services/measurementStats";
 import type { VerdictJson, DirectionCard } from "@contracts/types";
+import {
+  VIS_INDICATOR_CATEGORY,
+  manualVisBatchInput,
+  scoreVisFromCells,
+  formatMonthOnly,
+  NINE_GRID_COLUMN_LABELS,
+  SKIP_AUTO_PLATFORM_PROBE,
+} from "@contracts/diagnosisMeasure";
 
-/** 维度四 单项 → 词类映射：vis_1 决策词→通用类 / vis_2 场景词→业务场景类 / vis_3 对比词→品牌类 */
-const VIS_CATEGORY_MAP = {
-  vis_1: "generic",
-  vis_2: "scenario",
-  vis_3: "brand",
-} as const;
+/** 维度四 单项 → 词类：决策/场景/对比（brand key 仅为对比词存储，不测品牌知名度提问） */
+const VIS_CATEGORY_MAP = VIS_INDICATOR_CATEGORY;
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -284,6 +288,85 @@ export const diagnosticsRouter = createRouter({
         .where(eq(diagnostics.id, input.diagnosticId));
       return { diagnostic: serializeDiagnostic(updated!), scores: finalRows };
     }),
+
+  /**
+   * 维度四人工实测录入（P0-F）。
+   * 提交决策/场景/对比 × 平台格；不测品牌词；按命中平台数定档写入 vis_1-3。
+   * 三平台自动提问见 SKIP_AUTO_PLATFORM_PROBE（S1 跳过）。
+   */
+  saveVisManual: publicQuery.input(manualVisBatchInput).mutation(async ({ input }) => {
+    const db = getDb();
+    const [d] = await db
+      .select()
+      .from(diagnostics)
+      .where(eq(diagnostics.id, input.diagnosticId))
+      .limit(1);
+    if (!d) throw new Error(`诊断单不存在: ${input.diagnosticId}`);
+    if (d.projectId !== input.projectId) {
+      throw new Error("diagnosticId 与 projectId 不匹配");
+    }
+
+    const scored = scoreVisFromCells(input.cells);
+    const monthLabel = formatMonthOnly(input.measureDate);
+
+    for (const [indicatorKey, row] of Object.entries(scored)) {
+      const def = INDICATORS.find((i) => i.key === indicatorKey)!;
+      const evidence = `${monthLabel} · ${row.evidence}`;
+      await db
+        .insert(indicatorScores)
+        .values({
+          diagnosticId: input.diagnosticId,
+          indicatorKey,
+          dimension: 4,
+          score: row.score,
+          evidence,
+        })
+        .onDuplicateKeyUpdate({ set: { score: row.score, evidence } });
+    }
+
+    // 重算维度/综合分
+    const finalRows = await db
+      .select()
+      .from(indicatorScores)
+      .where(eq(indicatorScores.diagnosticId, input.diagnosticId));
+    const scoreMap: Record<string, number> = {};
+    for (const r of finalRows) scoreMap[r.indicatorKey] = r.score ?? 0;
+    const dims = computeDimensionScore(scoreMap);
+    const composite = computeComposite(dims);
+    const grade = computeGrade(composite);
+    await db
+      .update(diagnostics)
+      .set({
+        visScore: String(dims.vis),
+        techScore: String(dims.tech),
+        archScore: String(dims.arch),
+        contentScore: String(dims.content),
+        compositeScore: String(composite),
+        grade,
+        status: d.status === "completed" ? "completed" : "scoring",
+      })
+      .where(eq(diagnostics.id, input.diagnosticId));
+
+    const [updated] = await db
+      .select()
+      .from(diagnostics)
+      .where(eq(diagnostics.id, input.diagnosticId));
+
+    return {
+      diagnostic: serializeDiagnostic(updated!),
+      visScores: scored,
+      nineGridColumns: NINE_GRID_COLUMN_LABELS,
+      skipAutoProbe: SKIP_AUTO_PLATFORM_PROBE,
+      measureMonth: monthLabel,
+    };
+  }),
+
+  /** 前端拉契约常量：九格列头、跳过项、录入字段说明 */
+  visMeasureContract: publicQuery.query(() => ({
+    columns: NINE_GRID_COLUMN_LABELS,
+    skipAutoProbe: SKIP_AUTO_PLATFORM_PROBE,
+    note: "维度四仅决策/场景/对比词；不测品牌词；须人工真问留证后录入",
+  })),
 
   /** 整体替换发现列表 */
   saveFindings: publicQuery
