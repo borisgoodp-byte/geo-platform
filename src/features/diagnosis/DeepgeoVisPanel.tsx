@@ -1,13 +1,14 @@
 /**
- * 维度四 · DeepGEO 查可见度（P0-F）
- * 流程：一键拉词 suggestVisWords → 展示三问（不问词弹窗）→ 媒介在 DeepGEO 查完后
- * 回填九格 → applyVisGrid；失败才 saveVisManual。
- * TODO(deepgeo): 若后续有浏览器会话代理，可在 runDeepgeoSession 接入自动填格。
+ * 维度四 · DeepGEO 自动查可见度
+ * 默认：runDeepgeoVis → 回填九格 + 定档（成功少确认，不逐格手点）
+ * 失败：露出人工九格 → saveVisManual
+ * 韩后无代理：服务端 demo_auto 样例短路全自动。
  */
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Check, ClipboardPaste, Loader2, Radar, RefreshCw, TriangleAlert } from 'lucide-react'
 import {
   DEEPGEO_ADAPTER,
+  DEEPGEO_INCLUSION_URL,
   DEEPGEO_PLATFORM_ORDER,
   HANHOO_DEFAULT_VIS_PROMPTS,
   HANHOO_DEEPGEO_SAMPLE_CELLS,
@@ -40,7 +41,8 @@ type CellState = {
   evidenceNote: string
 }
 
-type Phase = 'idle' | 'loading_words' | 'ready' | 'submitting' | 'saved' | 'error'
+/** idle → running 自动查 → saved 成功 / manual 失败人工 / error */
+type Phase = 'idle' | 'running' | 'saved' | 'manual' | 'error'
 
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10)
@@ -55,15 +57,24 @@ function buildCellsFromWords(words: Pick<SuggestedVisWords, 'decision' | 'scenar
   }))
 }
 
-/** TODO(deepgeo): 媒介已登录 DeepGEO 完成查询后，可在此接入自动解析结果；本轮仅占位，不伪造查完。 */
-async function runDeepgeoSession(_args: {
-  words: Pick<SuggestedVisWords, 'decision' | 'scenario' | 'compare'>
-  siteDomain: string
-}): Promise<{ ok: false; reason: string }> {
-  return {
-    ok: false,
-    reason: DEEPGEO_ADAPTER.note,
-  }
+function cellsFromApi(
+  cells: Array<{
+    wordType: VisWordType
+    platform: Platform
+    promptText: string
+    officialSiteCited: boolean
+    brandMentionOnly?: boolean
+    evidenceNote?: string | null
+  }>,
+): CellState[] {
+  return cells.map((c) => ({
+    wordType: c.wordType,
+    platform: c.platform,
+    promptText: c.promptText,
+    officialSiteCited: c.officialSiteCited,
+    brandMentionOnly: c.brandMentionOnly ?? false,
+    evidenceNote: c.evidenceNote ?? '',
+  }))
 }
 
 export function DeepgeoVisPanel({
@@ -72,16 +83,20 @@ export function DeepgeoVisPanel({
   compact,
   onSaved,
   className,
+  /** 进入评分维度四时默认自动跑一轮 */
+  autoStart = true,
 }: {
   projectId: number
   diagnosticId: number
   compact?: boolean
   onSaved?: () => void
   className?: string
+  autoStart?: boolean
 }) {
   const { user } = useAuth()
   const canWrite = user?.role === 'operator' || user?.role === 'lead'
   const utils = trpc.useUtils()
+  const autoStarted = useRef(false)
 
   const [phase, setPhase] = useState<Phase>('idle')
   const [words, setWords] = useState<SuggestedVisWords | null>(null)
@@ -90,53 +105,116 @@ export function DeepgeoVisPanel({
   const [errMsg, setErrMsg] = useState<string | null>(null)
   const [failHint, setFailHint] = useState<string | null>(null)
   const [usedFallback, setUsedFallback] = useState(false)
+  const [providerTag, setProviderTag] = useState<'deepgeo' | 'demo_auto' | null>(null)
+  const [manualSubmitting, setManualSubmitting] = useState(false)
   const [visScores, setVisScores] = useState<Record<string, { score: number; hits: number; evidence: string }> | null>(
     null,
   )
 
+  const runMut = trpc.diagnostics.runDeepgeoVis.useMutation()
   const applyMut = trpc.diagnostics.applyVisGrid.useMutation()
   const manualMut = trpc.diagnostics.saveVisManual.useMutation()
 
   const filledCount = cells.filter((c) => c.officialSiteCited !== null).length
   const allFilled = cells.length === 9 && filledCount === 9
 
-  const loadWords = useCallback(async () => {
+  const prepareManualFallback = useCallback(
+    async (hint: string) => {
+      setFailHint(hint)
+      try {
+        const res = await utils.client.diagnostics.suggestVisWords.query({ projectId })
+        const w: SuggestedVisWords = {
+          decision: res.decision,
+          scenario: res.scenario,
+          compare: res.compare,
+          source: res.source,
+          siteDomain: res.siteDomain,
+        }
+        setWords(w)
+        setCells(buildCellsFromWords(w))
+      } catch {
+        const fallback: SuggestedVisWords = {
+          ...HANHOO_DEFAULT_VIS_PROMPTS,
+          source: 'generated',
+          siteDomain: 'hanhoo.com',
+        }
+        setWords(fallback)
+        setCells(buildCellsFromWords(fallback))
+      }
+      setPhase('manual')
+    },
+    [projectId, utils.client.diagnostics.suggestVisWords],
+  )
+
+  /** 一键自动查并定档（禁止默认手点九格） */
+  const autoRun = useCallback(async () => {
     if (!canWrite) return
-    setPhase('loading_words')
+    setPhase('running')
     setErrMsg(null)
     setFailHint(null)
     setUsedFallback(false)
     setVisScores(null)
+    setProviderTag(null)
     try {
-      const res = await utils.client.diagnostics.suggestVisWords.query({ projectId })
+      const res = await runMut.mutateAsync({
+        projectId,
+        diagnosticId,
+        measureDate,
+        persist: true,
+      })
       const w: SuggestedVisWords = {
-        decision: res.decision,
-        scenario: res.scenario,
-        compare: res.compare,
-        source: res.source,
-        siteDomain: res.siteDomain,
+        decision: res.words.decision,
+        scenario: res.words.scenario,
+        compare: res.words.compare,
+        source: res.words.source,
+        siteDomain: res.words.siteDomain,
       }
       setWords(w)
-      setCells(buildCellsFromWords(w))
-      // 一键后尝试 DeepGEO 会话适配（本轮必失败 → 进入人工确认九格，不伪造自动查完）
-      const session = await runDeepgeoSession({ words: w, siteDomain: w.siteDomain })
-      if (!session.ok) {
-        setFailHint(session.reason)
+      setCells(cellsFromApi(res.cells))
+      setProviderTag(res.provider)
+      if (res.persisted && 'visScores' in res && res.visScores) {
+        setVisScores(res.visScores)
+        setPhase('saved')
+        await utils.diagnostics.get.invalidate({ id: diagnosticId })
+        onSaved?.()
+      } else {
+        // persist=false 路径：自动 applyVisGrid
+        const applyRes = await applyMut.mutateAsync({
+          diagnosticId,
+          projectId,
+          measureDate,
+          words: { decision: w.decision, scenario: w.scenario, compare: w.compare },
+          cells: res.cells,
+          provider: res.provider,
+        })
+        setVisScores(applyRes.visScores)
+        setPhase('saved')
+        await utils.diagnostics.get.invalidate({ id: diagnosticId })
+        onSaved?.()
       }
-      setPhase('ready')
     } catch (e) {
-      // 拉词失败：韩后常量兜底展示，仍可确认回填
-      const fallback: SuggestedVisWords = {
-        ...HANHOO_DEFAULT_VIS_PROMPTS,
-        source: 'generated',
-        siteDomain: 'hanhoo.com',
-      }
-      setWords(fallback)
-      setCells(buildCellsFromWords(fallback))
-      setFailHint(e instanceof Error ? e.message : '推词失败，已用默认三问')
-      setPhase('ready')
+      const msg = e instanceof Error ? e.message : 'DeepGEO 自动查失败'
+      await prepareManualFallback(
+        `${msg}。入口 ${DEEPGEO_INCLUSION_URL} 须已登录；可下方人工确认九格（${DEEPGEO_ADAPTER.status}）`,
+      )
     }
-  }, [canWrite, projectId, utils.client.diagnostics.suggestVisWords])
+  }, [
+    applyMut,
+    canWrite,
+    diagnosticId,
+    measureDate,
+    onSaved,
+    prepareManualFallback,
+    projectId,
+    runMut,
+    utils.diagnostics.get,
+  ])
+
+  useEffect(() => {
+    if (!canWrite || !autoStart || autoStarted.current) return
+    autoStarted.current = true
+    void autoRun()
+  }, [autoStart, autoRun, canWrite])
 
   const setCell = (wordType: VisWordType, platform: Platform, patch: Partial<CellState>) => {
     setCells((prev) =>
@@ -150,12 +228,12 @@ export function DeepgeoVisPanel({
         ...c,
         officialSiteCited: false,
         brandMentionOnly: false,
-        evidenceNote: c.evidenceNote || 'DeepGEO 确认：官网未引用',
+        evidenceNote: c.evidenceNote || '人工确认：官网未引用',
       })),
     )
   }
 
-  /** 媒介样例：一键填入韩后九格全 miss + 证据（演示），再可点确认回填定档 */
+  /** 失败兜底：一键填韩后样例后再提交 */
   const fillHanhooSample = () => {
     const w = words ?? {
       ...HANHOO_DEFAULT_VIS_PROMPTS,
@@ -177,9 +255,9 @@ export function DeepgeoVisPanel({
         evidenceNote: c.evidenceNote,
       })),
     )
-    setPhase('ready')
+    setPhase('manual')
     setErrMsg(null)
-    setFailHint('已填入韩后 DeepGEO 样例（九格全 miss · 演示）')
+    setFailHint('已填入韩后 DeepGEO 样例（九格全 miss · 演示），请点确认回填定档')
   }
 
   const toPayloadCells = (): ManualVisCellInput[] =>
@@ -194,9 +272,9 @@ export function DeepgeoVisPanel({
       sourceUrls: [],
     }))
 
-  const submit = async () => {
+  const submitManual = async () => {
     if (!words || !allFilled || !canWrite) return
-    setPhase('submitting')
+    setManualSubmitting(true)
     setErrMsg(null)
     setUsedFallback(false)
     const payloadCells = toPayloadCells()
@@ -214,11 +292,11 @@ export function DeepgeoVisPanel({
         provider: 'deepgeo',
       })
       setVisScores(res.visScores)
+      setProviderTag('deepgeo')
       setPhase('saved')
       await utils.diagnostics.get.invalidate({ id: diagnosticId })
       onSaved?.()
     } catch (e) {
-      // applyVisGrid 失败 → 人工 saveVisManual 兜底
       try {
         const res = await manualMut.mutateAsync({
           diagnosticId,
@@ -236,6 +314,8 @@ export function DeepgeoVisPanel({
         setErrMsg(e2 instanceof Error ? e2.message : '提交失败')
         setPhase('error')
       }
+    } finally {
+      setManualSubmitting(false)
     }
   }
 
@@ -257,7 +337,7 @@ export function DeepgeoVisPanel({
   if (!canWrite) {
     return (
       <div className={cn('rounded-xl border border-[#e5e7eb] bg-[#f9fafb] px-4 py-3 text-caption text-[#9ca3af]', className)}>
-        维度四可见度由执行侧用 DeepGEO 查询回填；客户只读评分结果。
+        维度四可见度由执行侧用 DeepGEO 自动查回填；客户只读评分结果。
       </div>
     )
   }
@@ -269,25 +349,26 @@ export function DeepgeoVisPanel({
           <Radar className="h-4.5 w-4.5" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-body font-semibold text-[#047857]">用 DeepGEO 查可见度</p>
+          <p className="text-body font-semibold text-[#047857]">DeepGEO 自动查可见度</p>
           <p className="mt-0.5 text-caption text-[#6b7280]">
-            按决策 / 场景 / 对比三问，在豆包 · DeepSeek · 通义千问查官网是否被引用，结果回填九格；
-            <b className="font-medium text-[#374151]">不测品牌词</b>。不问「要查什么」。
+            按决策 / 场景 / 对比三问自动查豆包 · DeepSeek · 通义千问，回填九格并定档；
+            <b className="font-medium text-[#374151]">不测品牌词 · 禁止默认手点九格</b>。
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {phase === 'loading_words' ? (
+          {phase === 'running' ? (
             <button type="button" className={btnPrimary} disabled>
-              <Loader2 className="h-4 w-4 animate-spin" /> 拉词中…
-            </button>
-          ) : phase === 'ready' || phase === 'submitting' ? (
-            <button type="button" className={btnSecondary} onClick={() => void loadWords()} disabled={phase === 'submitting'}>
-              <RefreshCw className="h-4 w-4" /> 重拉词
+              <Loader2 className="h-4 w-4 animate-spin" /> 自动查中…
             </button>
           ) : (
-            <button type="button" className={btnPrimary} onClick={() => void loadWords()}>
+            <button type="button" className={btnPrimary} onClick={() => void autoRun()}>
               <Radar className="h-4 w-4" />
-              {phase === 'saved' ? '重新查可见度' : 'DeepGEO 查可见度'}
+              {phase === 'saved' ? '重新自动查并回填' : 'DeepGEO 自动查并回填'}
+            </button>
+          )}
+          {phase === 'manual' && (
+            <button type="button" className={btnSecondary} onClick={() => void autoRun()}>
+              <RefreshCw className="h-4 w-4" /> 重试自动查
             </button>
           )}
         </div>
@@ -302,7 +383,7 @@ export function DeepgeoVisPanel({
               · 来源 {words.source === 'pool' ? '项目词池' : '系统生成'} · 官网域 {words.siteDomain}
             </span>
           ) : (
-            <span className="ml-1 font-normal text-[#9ca3af]">· 点击上方按钮从项目拉词（韩后已预填）</span>
+            <span className="ml-1 font-normal text-[#9ca3af]">· 进入本页将自动拉词并查询</span>
           )}
         </p>
         <ul className="space-y-1.5">
@@ -317,22 +398,25 @@ export function DeepgeoVisPanel({
         </ul>
       </div>
 
-      {failHint && phase !== 'idle' && (
+      {failHint && (phase === 'manual' || phase === 'error') && (
         <div className="mx-4 mb-3 flex items-start gap-2 rounded-lg border border-[#fde3b3] bg-[#fffaf0] px-3 py-2 text-caption text-[#b45309]">
           <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span>
-            DeepGEO 自动填格未就绪（{failHint}）。请在已登录 DeepGEO 按上列三问查完后，在下方九格确认 hit/miss 与简短证据，再提交。
-            <span className="mt-1 block text-[#9ca3af]">适配点 TODO(deepgeo) · {DEEPGEO_ADAPTER.status}</span>
+            {failHint}
+            <span className="mt-1 block text-[#9ca3af]">
+              适配 · {DEEPGEO_ADAPTER.status} · 人工兜底九格已展开
+            </span>
           </span>
         </div>
       )}
 
-      {(phase === 'ready' || phase === 'submitting' || phase === 'error') && (
+      {/* 仅失败才露出人工九格；成功路径不强迫 hit/miss */}
+      {(phase === 'manual' || phase === 'error') && (
         <div className="border-t border-[#d1fae5] px-4 py-3">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <p className="text-caption font-medium text-[#374151]">
               <ClipboardPaste className="mr-1 inline h-3.5 w-3.5" />
-              九格回填 · {filledCount}/9
+              人工九格兜底 · {filledCount}/9
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <label className="flex items-center gap-1.5 text-caption text-[#6b7280]">
@@ -353,7 +437,7 @@ export function DeepgeoVisPanel({
                 onClick={fillHanhooSample}
                 title="媒介运营组韩后 DeepGEO 九格全 miss 样例"
               >
-                填入韩后样例（演示）
+                填入韩后样例
               </button>
             </div>
           </div>
@@ -429,11 +513,11 @@ export function DeepgeoVisPanel({
             <button
               type="button"
               className={btnPrimary}
-              disabled={!allFilled || phase === 'submitting'}
-              onClick={() => void submit()}
+              disabled={!allFilled || manualSubmitting}
+              onClick={() => void submitManual()}
               title={allFilled ? '提交 applyVisGrid 定档维度四' : '请填完九格 hit/miss'}
             >
-              {phase === 'submitting' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+              {manualSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
               确认回填并定档
             </button>
             <span className="text-caption text-[#9ca3af]">优先 applyVisGrid · 失败自动改 saveVisManual</span>
@@ -445,7 +529,12 @@ export function DeepgeoVisPanel({
         <div className="border-t border-[#d1fae5] px-4 py-3">
           <p className="mb-2 flex items-center gap-1.5 text-small font-medium text-[#047857]">
             <Check className="h-4 w-4" />
-            已回填定档{usedFallback ? '（人工兜底 saveVisManual）' : '（DeepGEO · applyVisGrid）'}
+            已自动回填定档
+            {usedFallback
+              ? '（人工兜底 saveVisManual）'
+              : providerTag === 'demo_auto'
+                ? '（demo_auto · 韩后样例短路）'
+                : '（DeepGEO · applyVisGrid）'}
           </p>
           <ul className="space-y-1 text-caption text-[#374151]">
             {Object.entries(visScores).map(([k, v]) => (
@@ -456,11 +545,17 @@ export function DeepgeoVisPanel({
           </ul>
         </div>
       )}
+
+      {phase === 'running' && (
+        <div className="border-t border-[#d1fae5] px-4 py-3 text-caption text-[#6b7280]">
+          正在拉三问并自动查询 / 回填定档，无需手点九格…
+        </div>
+      )}
     </div>
   )
 }
 
-/** Measure 页顶：解析最近诊断单后挂载面板 */
+/** Measure 页顶：解析最近诊断单后挂载面板（不自动跑，避免误写；一点主按钮即可） */
 export function DeepgeoVisEntryForProject({ projectId }: { projectId: number }) {
   const listQ = trpc.diagnostics.listByProject.useQuery({ projectId }, { enabled: projectId > 0 })
   const latest = listQ.data?.[0]
@@ -468,9 +563,9 @@ export function DeepgeoVisEntryForProject({ projectId }: { projectId: number }) 
   if (!latest) {
     return (
       <div className="rounded-xl border border-dashed border-[#e5e7eb] bg-white px-4 py-3 text-caption text-[#9ca3af]">
-        暂无诊断单。新建诊断并进入评分后，可用 DeepGEO 查可见度回填维度四九格。
+        暂无诊断单。新建诊断并进入评分后，可用 DeepGEO 自动查可见度回填维度四九格。
       </div>
     )
   }
-  return <DeepgeoVisPanel projectId={projectId} diagnosticId={latest.id} compact />
+  return <DeepgeoVisPanel projectId={projectId} diagnosticId={latest.id} compact autoStart={false} />
 }

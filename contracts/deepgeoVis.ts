@@ -46,8 +46,8 @@ export const applyVisGridInput = z.object({
     compare: true,
   }),
   cells: z.array(deepgeoGridCellSchema).min(1).max(27),
-  /** 来源标记，便于报告底稿 */
-  provider: z.literal("deepgeo").default("deepgeo"),
+  /** 来源标记：真查 deepgeo；韩后样例短路 demo_auto */
+  provider: z.enum(["deepgeo", "demo_auto"]).default("deepgeo"),
 });
 
 export type ApplyVisGridInput = z.infer<typeof applyVisGridInput>;
@@ -135,14 +135,18 @@ export function HANHOO_DEEPGEO_SAMPLE_CELLS(words: {
 /** UI / 产品文案平台顺序：豆包 → DeepSeek → 通义千问 */
 export const DEEPGEO_PLATFORM_ORDER = ["doubao", "deepseek", "qwen"] as const satisfies readonly Platform[];
 
+/** DeepGEO 收录查询页（须已登录） */
+export const DEEPGEO_INCLUSION_URL = "https://www.deepgeo.org.cn/inclusionQuery.html";
+
 /**
- * TODO(deepgeo): 本轮查九格由媒介在已登录 DeepGEO 完成；前端只做拉词+确认回填+applyVisGrid。
- * 若后续有会话代理可在此自动填格——禁止在未查时伪造成「已自动查完」。
+ * 自动查适配：服务端 diagnostics.runDeepgeoVis / runDeepgeoAuto。
+ * 成功直接 applyVisGrid；失败才露出人工九格。
  */
 export const DEEPGEO_ADAPTER = {
   id: "deepgeo",
   status: "server_auto" as const,
-  note: "调用 diagnostics.runDeepgeoAuto；失败回退 saveVisManual",
+  entry: DEEPGEO_INCLUSION_URL,
+  note: "调用 diagnostics.runDeepgeoVis；韩后无代理可 demo_auto 样例短路；失败回退 saveVisManual",
 } as const;
 
 export function isHanhooProject(opts: { name?: string | null; domain?: string | null }): boolean {
