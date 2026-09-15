@@ -42,26 +42,16 @@ export function dayToDate(startDate: string, day: number): string {
 
 /**
  * 生成排期表：A 战略诊断(0-5) / B 官网重构(6-25) / C 内容运营(15-75) / D 数据洞察(10-180+)。
- * 考核目标按档：basic 20% / standard 30% / premium 40%；
- * 6 个月节点 30%/50% 双线呈现仅在高级档（premium）。
+ * 考核按周期：3/6 月 ≥30%，12 月 ≥50%；词库完成率 ≥80%（zcode 2026-09-04）。
  */
 export function generateSchedule(
   startDate: string,
   tier: ServiceTier,
 ): GeneratedSchedule {
   const kpiTarget = TIER_KPI_TARGETS[tier];
-  const m6Desc =
-    tier === "premium"
-      ? "6 个月考核节点：当日实测引用率目标 ≥30%，冲刺线 50%；达成率 ≥80%（24%/40%）即验收合格"
-      : `6 个月考核节点：当日实测引用率目标 ≥${kpiTarget}%；达成率 ≥80%（${Math.round(
-          kpiTarget * 0.8,
-        )}%）即验收合格`;
-  const m12Desc =
-    tier === "premium"
-      ? "12 个月考核节点：当日实测引用率目标 ≥50%；达成率 ≥80%（40%）即验收合格"
-      : `12 个月考核节点：当日实测引用率目标 ≥${kpiTarget}%；达成率 ≥80%（${Math.round(
-          kpiTarget * 0.8,
-        )}%）即验收合格`;
+  const accept = Math.round(kpiTarget * 0.8);
+  const m6Desc = `6 个月考核节点：当日实测引用官网呈现率 ≥${kpiTarget}%；词库完成率 ≥80%；达成率 ≥80%（${accept}%）即验收合格`;
+  const m12Desc = `12 个月考核节点：当日实测引用官网呈现率 ≥${TIER_KPI_TARGETS.premium}%；词库完成率 ≥80%；达成率 ≥80%（40%）即验收合格`;
 
   const phasesJson: SchedulePhase[] = [
     {

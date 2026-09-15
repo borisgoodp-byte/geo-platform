@@ -29,9 +29,9 @@ export interface Project {
 }
 
 export const TIER_META: Record<ServiceTier, { label: string; kpi: string; chipClass: string }> = {
-  junior: { label: '初级', kpi: 'KPI ≥20%', chipClass: 'bg-[#f3f4f6] text-[#6b7280] border-[#e5e7eb]' },
-  middle: { label: '中级', kpi: 'KPI ≥30%', chipClass: 'bg-brand-light text-brand border-[#c7dbff]' },
-  senior: { label: '高级', kpi: 'KPI ≥40%', chipClass: 'bg-[#f0efff] text-qwen border-[#d8d6ff]' },
+  junior: { label: '3个月版', kpi: 'KPI ≥30%', chipClass: 'bg-[#f3f4f6] text-[#6b7280] border-[#e5e7eb]' },
+  middle: { label: '6个月版', kpi: 'KPI ≥30%', chipClass: 'bg-brand-light text-brand border-[#c7dbff]' },
+  senior: { label: '12个月版', kpi: 'KPI ≥50%', chipClass: 'bg-[#f0efff] text-qwen border-[#d8d6ff]' },
 }
 
 export const STAGE_META: Record<StageKey, { label: string; color: string }> = {

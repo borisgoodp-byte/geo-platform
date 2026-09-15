@@ -399,7 +399,7 @@ function ProjectModalPanel({
                   ))}
                 </div>
                 <p className="mt-1.5 text-caption text-[#9ca3af]">
-                  服务档承诺：初级 ≥20% / 中级 ≥30% / 高级 ≥40%（引用呈现率 KPI）
+                  周期考核：3/6 个月版 ≥30% / 12 个月版 ≥50%；词库完成率 ≥80%
                 </p>
               </div>
 

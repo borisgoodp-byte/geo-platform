@@ -1,6 +1,6 @@
 /**
  * 引用判定与 KPI 口径（前后端共享 · 禁止依赖 api/）
- * 依据 DESIGN_SPEC §2 与看板规划方案原文口径。
+ * 依据 zcode pricing 2026-09-04：周期考核 3/6月≥30%、12月≥50%，词库完成率≥80%。
  */
 
 export const PLATFORMS = ["deepseek", "doubao", "qwen"] as const;
@@ -42,23 +42,59 @@ export const KPI_STATUS_LABELS: Record<KpiStatus, string> = {
   pending: "未到节点",
 };
 
-/** 项目服务档 KPI 目标：初级 20% / 中级 30% / 高级 40% */
+/**
+ * 服务周期 KPI（zcode pricing 2026-09-04）：
+ * 3/6 个月 ≥30%，12 个月 ≥50%；不再使用旧初级20%/中级30%/高级40%。
+ * ServiceTier 映射：basic=3个月版 / standard=6个月版 / premium=12个月版。
+ */
 export const TIER_KPI_TARGETS = {
-  basic: 20,
+  basic: 30,
   standard: 30,
-  premium: 40,
+  premium: 50,
 } as const;
 export type ServiceTier = keyof typeof TIER_KPI_TARGETS;
 
-/** 考核节点：6 个月目标 30% / 12 个月目标 50%；验收线 = 目标 × 0.8（24% / 40%） */
+/** 各档对应服务月数与套餐价（元，含税） */
+export const TIER_CYCLE_MONTHS = {
+  basic: 3,
+  standard: 6,
+  premium: 12,
+} as const;
+
+export const TIER_PACKAGE_PRICE = {
+  basic: 30_000,
+  standard: 60_000,
+  premium: 120_000,
+} as const;
+
+/**
+ * 考核节点：3/6 月目标 30%、12 月目标 50%；
+ * 验收线 = 目标 × 0.8（24% / 24% / 40%）。
+ */
 export const CHECKPOINTS = {
+  m3: { tag: "m3", label: "3个月考核节点", target: 30, acceptRate: 24 },
   m6: { tag: "m6", label: "6个月考核节点", target: 30, acceptRate: 24 },
   m12: { tag: "m12", label: "12个月考核节点", target: 50, acceptRate: 40 },
 } as const;
 export type CheckpointTag = keyof typeof CHECKPOINTS;
 
+/** 词库 KPI：完成词数 ÷ 词库总词数 ≥ 80% 即词库达标 */
+export const POOL_COMPLETION_TARGET = 80;
+
 /** 验收折扣口径：核心 KPI 达成率 ≥80% 即验收合格 */
 export const ACCEPTANCE_FACTOR = 0.8;
+
+/**
+ * 维度四实测词类（决策/场景/对比）。不测品牌词；
+ * 三平台自动实测本轮不做，保留人工录入。
+ */
+export const VIS_WORD_TYPES = ["decision", "scenario", "compare"] as const;
+export type VisWordType = (typeof VIS_WORD_TYPES)[number];
+export const VIS_WORD_TYPE_LABELS: Record<VisWordType, string> = {
+  decision: "决策词",
+  scenario: "场景词",
+  compare: "对比词",
+};
 
 /** 追踪参数黑名单（normalizeUrl 时剔除） */
 const TRACKING_PARAMS = new Set([
@@ -118,6 +154,18 @@ export function calcCitationRate(total: number, l2: number): number {
 export function calcCoverageRate(activeWords: number, hitWords: number): number {
   if (activeWords <= 0) return 0;
   return Math.round((hitWords / activeWords) * 1000) / 10;
+}
+
+
+/** 词库完成率 = 达标词数 ÷ 词库总词数 × 100%（保留 1 位小数） */
+export function calcPoolCompletionRate(totalWords: number, completedWords: number): number {
+  if (totalWords <= 0) return 0;
+  return Math.round((completedWords / totalWords) * 1000) / 10;
+}
+
+/** 单词是否达到周期考核目标（引用率 ≥ target） */
+export function isWordCompleted(wordCitationRate: number, target: number): boolean {
+  return wordCitationRate >= target;
 }
 
 /**
