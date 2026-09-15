@@ -105,7 +105,7 @@ export function DeepgeoVisPanel({
   const [errMsg, setErrMsg] = useState<string | null>(null)
   const [failHint, setFailHint] = useState<string | null>(null)
   const [usedFallback, setUsedFallback] = useState(false)
-  const [providerTag, setProviderTag] = useState<'deepgeo' | 'demo_auto' | null>(null)
+  const [providerTag, setProviderTag] = useState<'deepgeo' | 'demo_auto' | 'deepgeo_web' | null>(null)
   const [manualSubmitting, setManualSubmitting] = useState(false)
   const [visScores, setVisScores] = useState<Record<string, { score: number; hits: number; evidence: string }> | null>(
     null,
@@ -349,10 +349,13 @@ export function DeepgeoVisPanel({
           <Radar className="h-4.5 w-4.5" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-body font-semibold text-[#047857]">DeepGEO 自动查可见度</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-body font-semibold text-[#047857]">DeepGEO 自动查可见度</p>
+            <span className="rounded-full bg-[#f3f4f6] px-2 py-0.5 text-caption text-[#6b7280]">不测品牌词</span>
+          </div>
           <p className="mt-0.5 text-caption text-[#6b7280]">
             按决策 / 场景 / 对比三问自动查豆包 · DeepSeek · 通义千问，回填九格并定档；
-            <b className="font-medium text-[#374151]">不测品牌词 · 禁止默认手点九格</b>。
+            <b className="font-medium text-[#374151]">禁止默认手点九格</b>。
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

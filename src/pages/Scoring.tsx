@@ -62,6 +62,7 @@ export default function Scoring() {
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [flashKey, setFlashKey] = useState<string | null>(null)
   const [confirmAdoptDim, setConfirmAdoptDim] = useState<number | null>(null)
+  const [undoneExpanded, setUndoneExpanded] = useState(false)
   const initedRef = useRef(false)
 
   // 初次载入：用服务端评分初始化本地状态
@@ -165,13 +166,22 @@ export default function Scoring() {
         .map(([k]) => k),
     [scores],
   )
+  const visDone = useMemo(() => {
+    if (!diag) return false
+    return (['vis_1', 'vis_2', 'vis_3'] as const).every((k) => {
+      const ind = diag.indicators.find((i) => i.key === k)
+      return ind?.scoreRow?.score !== null && ind?.scoreRow?.score !== undefined
+    })
+  }, [diag])
   const totalCount = 18
-  const doneCount = doneKeys.length + 3 // 维度四三项由实测自动定档
-  const allDone = doneKeys.length === 15
+  const totalDone = doneKeys.length + (visDone ? 3 : 0)
+  const allDone = totalDone === 18
   const undone = useMemo(
     () => (diag ? diag.indicators.filter((i) => i.dimension !== 4 && (scores[i.key] === null || scores[i.key] === undefined)) : []),
     [diag, scores],
   )
+  const undoneVisible = undoneExpanded ? undone : undone.slice(0, 6)
+  const undoneHidden = Math.max(0, undone.length - 6)
 
   const adoptMachine = (dim: number) => {
     if (confirmAdoptDim !== dim) {
@@ -232,7 +242,7 @@ export default function Scoring() {
               type="button"
               className={btnPrimary}
               disabled={!allDone || saveMut.isPending}
-              title={allDone ? '保存评分并进入发现编辑' : `还有 ${15 - doneKeys.length} 项未定档`}
+              title={allDone ? '保存评分并进入发现编辑' : `还有 ${totalCount - totalDone} 项未定档`}
               onClick={() => void completeAll()}
             >
               {saveMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
@@ -541,29 +551,45 @@ export default function Scoring() {
                   strokeWidth={5}
                   strokeLinecap="round"
                   strokeDasharray={2 * Math.PI * 18}
-                  animate={{ strokeDashoffset: 2 * Math.PI * 18 * (1 - doneCount / totalCount) }}
+                  animate={{ strokeDashoffset: 2 * Math.PI * 18 * (1 - totalDone / totalCount) }}
                   transition={{ duration: 0.4, ease: EASE }}
                 />
               </svg>
               <div>
                 <p className="text-body font-semibold text-[#111827] tabular-nums">
-                  {doneCount} / {totalCount} 已定档
+                  {totalDone} / {totalCount} 已定档
                 </p>
-                <p className="text-caption text-[#9ca3af]">维度四默认 DeepGEO 查可见度回填 · 不测品牌词</p>
+                <p className="text-caption text-[#9ca3af]">
+                  {visDone
+                    ? `人工 ${doneKeys.length}/15 已定档 · 维度四已自动回填`
+                    : `人工 ${doneKeys.length}/15 · 维度四待 DeepGEO 回填`}
+                </p>
               </div>
             </div>
             {undone.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {undone.map((u) => (
-                  <button
-                    key={u.key}
-                    type="button"
-                    onClick={() => scrollToRow(u.key)}
-                    className="rounded-full border border-[#e5e7eb] px-2 py-0.5 text-caption text-[#6b7280] transition-colors hover:border-brand hover:text-brand"
-                  >
-                    {u.name}
-                  </button>
-                ))}
+              <div className="mt-3">
+                <p className="mb-1.5 text-caption text-[#9ca3af]">待定档 · 点击跳转</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {undoneVisible.map((u) => (
+                    <button
+                      key={u.key}
+                      type="button"
+                      onClick={() => scrollToRow(u.key)}
+                      className="rounded-full border border-[#e5e7eb] px-2 py-0.5 text-caption text-[#6b7280] transition-colors hover:border-brand hover:text-brand"
+                    >
+                      {u.name}
+                    </button>
+                  ))}
+                  {undoneHidden > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setUndoneExpanded((v) => !v)}
+                      className="rounded-full border border-[#e5e7eb] px-2 py-0.5 text-caption text-[#6b7280] transition-colors hover:border-brand hover:text-brand"
+                    >
+                      {undoneExpanded ? '收起' : `还有 ${undoneHidden} 项`}
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>
