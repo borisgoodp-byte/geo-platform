@@ -1,8 +1,9 @@
 /**
  * 维度四 · DeepGEO 自动查可见度契约（前后端共享）
- * 依据 DEEPGEO_VIS_AUTO_v1.md：从项目推词 → DeepGEO 查三平台 → 回填九格。
- * 本轮：服务端负责推词 + 九格落库定档；DeepGEO 浏览器会话由前端/媒介已登录态驱动，
- * 服务端 runDeepgeoAuto 可用 DEEPGEO_USER/PASS 真查；失败回退 saveVisManual。
+ * 依据 DEEPGEO_VIS_AUTO_v1.md / DEEPGEO_API_v1.md（Open API）：
+ * 从项目推词 → DeepGEO 查三平台 → 回填九格。
+ * 服务端 runDeepgeoVis：DEEPGEO_ACCESS_TOKEN 或 PHONE|USER/PASS → customer/info + token；
+ * 查询 /api/v1/query/reference + detail；平台 tongyi↔qwen；失败回退 saveVisManual。
  */
 
 import { z } from "zod";
