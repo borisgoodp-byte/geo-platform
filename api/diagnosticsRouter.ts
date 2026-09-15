@@ -37,6 +37,8 @@ import {
   applyVisGridInput,
   emptyNineGridTemplate,
 } from "@contracts/deepgeoVis";
+import { DeepgeoRunError, runDeepgeoQuery } from "./services/deepgeoRunner";
+import { TRPCError } from "@trpc/server";
 
 /** 维度四 单项 → 词类：决策/场景/对比（brand key 仅为对比词存储，不测品牌知名度提问） */
 const VIS_CATEGORY_MAP = VIS_INDICATOR_CATEGORY;
@@ -356,6 +358,140 @@ export const diagnosticsRouter = createRouter({
       return {
         ...words,
         gridTemplate: emptyNineGridTemplate(words),
+      };
+    }),
+
+
+  /**
+   * P0 自动化：服务端推词 + DeepGEO 真查九格，返回 cells 供前端 applyVisGrid。
+   * persist=true 时直接落库。失败抛 TRPCError，前端回退 saveVisManual。
+   */
+  runDeepgeoAuto: publicQuery
+    .input(
+      z.object({
+        projectId: z.number().int().positive(),
+        diagnosticId: z.number().int().positive(),
+        measureDate: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional(),
+        persist: z.boolean().default(true),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const words = await suggestWordsForProject(input.projectId);
+      let run: Awaited<ReturnType<typeof runDeepgeoQuery>>;
+      try {
+        run = await runDeepgeoQuery({
+          words: {
+            decision: words.decision,
+            scenario: words.scenario,
+            compare: words.compare,
+          },
+          siteDomain: words.siteDomain,
+        });
+      } catch (e) {
+        if (e instanceof DeepgeoRunError) {
+          throw new TRPCError({
+            code: e.code === "DEEPGEO_CREDS_MISSING" || e.code === "DEEPGEO_NOT_CONFIGURED"
+              ? "PRECONDITION_FAILED"
+              : e.code === "DEEPGEO_AUTH_FAILED"
+                ? "UNAUTHORIZED"
+                : "BAD_REQUEST",
+            message: `${e.message} · fallback=${e.fallback}`,
+            cause: e,
+          });
+        }
+        throw e;
+      }
+
+      const measureDate = input.measureDate ?? new Date().toISOString().slice(0, 10);
+      const payload = {
+        diagnosticId: input.diagnosticId,
+        projectId: input.projectId,
+        measureDate,
+        words: {
+          decision: words.decision,
+          scenario: words.scenario,
+          compare: words.compare,
+        },
+        cells: run.cells,
+        provider: "deepgeo" as const,
+      };
+
+      if (!input.persist) {
+        return {
+          ok: true as const,
+          mode: run.mode,
+          words,
+          cells: run.cells,
+          fallback: "saveVisManual" as const,
+          persisted: false as const,
+        };
+      }
+
+      // 复用 applyVisGrid 落库逻辑：直接调 scoreVisFromCells 路径
+      const cells = run.cells;
+      const db = getDb();
+      const [d] = await db
+        .select()
+        .from(diagnostics)
+        .where(eq(diagnostics.id, input.diagnosticId))
+        .limit(1);
+      if (!d) throw new Error(`诊断单不存在: ${input.diagnosticId}`);
+      if (d.projectId !== input.projectId) throw new Error("diagnosticId 与 projectId 不匹配");
+
+      const scored = scoreVisFromCells(cells);
+      const monthLabel = formatMonthOnly(measureDate);
+      for (const [indicatorKey, row] of Object.entries(scored)) {
+        const evidence = `${monthLabel} · DeepGEO(${run.mode}) · ${row.evidence}`;
+        await db
+          .insert(indicatorScores)
+          .values({
+            diagnosticId: input.diagnosticId,
+            indicatorKey,
+            dimension: 4,
+            score: row.score,
+            evidence,
+          })
+          .onDuplicateKeyUpdate({ set: { score: row.score, evidence } });
+      }
+      const finalRows = await db
+        .select()
+        .from(indicatorScores)
+        .where(eq(indicatorScores.diagnosticId, input.diagnosticId));
+      const scoreMap: Record<string, number> = {};
+      for (const r of finalRows) scoreMap[r.indicatorKey] = r.score ?? 0;
+      const dims = computeDimensionScore(scoreMap);
+      const composite = computeComposite(dims);
+      const grade = computeGrade(composite);
+      await db
+        .update(diagnostics)
+        .set({
+          visScore: String(dims.vis),
+          techScore: String(dims.tech),
+          archScore: String(dims.arch),
+          contentScore: String(dims.content),
+          compositeScore: String(composite),
+          grade,
+          status: d.status === "completed" ? "completed" : "scoring",
+        })
+        .where(eq(diagnostics.id, input.diagnosticId));
+      const [updated] = await db
+        .select()
+        .from(diagnostics)
+        .where(eq(diagnostics.id, input.diagnosticId));
+
+      return {
+        ok: true as const,
+        mode: run.mode,
+        words,
+        cells: run.cells,
+        visScores: scored,
+        diagnostic: serializeDiagnostic(updated!),
+        fallback: "saveVisManual" as const,
+        persisted: true as const,
+        applyPayload: payload,
       };
     }),
 

@@ -2,7 +2,7 @@
  * 维度四 · DeepGEO 自动查可见度契约（前后端共享）
  * 依据 DEEPGEO_VIS_AUTO_v1.md：从项目推词 → DeepGEO 查三平台 → 回填九格。
  * 本轮：服务端负责推词 + 九格落库定档；DeepGEO 浏览器会话由前端/媒介已登录态驱动，
- * 结果经 applyVisGrid 回传（服务端暂不代持 DeepGEO cookie）。
+ * 服务端 runDeepgeoAuto 可用 DEEPGEO_USER/PASS 真查；失败回退 saveVisManual。
  */
 
 import { z } from "zod";
@@ -141,8 +141,8 @@ export const DEEPGEO_PLATFORM_ORDER = ["doubao", "deepseek", "qwen"] as const sa
  */
 export const DEEPGEO_ADAPTER = {
   id: "deepgeo",
-  status: "pending_proxy" as const,
-  note: "自动填格代理未接入；请按三问在 DeepGEO 查完后确认九格",
+  status: "server_auto" as const,
+  note: "调用 diagnostics.runDeepgeoAuto；失败回退 saveVisManual",
 } as const;
 
 export function isHanhooProject(opts: { name?: string | null; domain?: string | null }): boolean {
